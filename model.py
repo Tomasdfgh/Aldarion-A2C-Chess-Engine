@@ -1,22 +1,6 @@
 import torch.nn as nn
 from torch.utils.data import Dataset
 
-class ConvertData(Dataset):
-    def __init__(self,array,transform = None):
-        self.array = array
-        self.transform = transform
-
-    def __getitem__(self,index):
-        image, label = self.array[index]
-        if image.mode == 'RGBA':
-            image = image.convert('RGB')  # Convert RGBA to RGB
-        if self.transform:
-            image = self.transform(image)
-        return image, label
-
-    def __len__(self):
-        return len(self.array)
-
 class ChessNet(nn.Module):
     def __init__(self):
         super(ChessNet, self).__init__()

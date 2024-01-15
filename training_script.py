@@ -9,59 +9,57 @@ import torch
 import board_display as bd
 import torch.optim as optim
 import os
+import openpyxl
 
-#losses to consider:
-#White Policy
-#Black Policy
-
-#White value
-#Black value
-
-#White promotions
-#Black promotions
-
-
-#'''
 model = md.ChessNet().double()
 model.train()
 
-gamma = 0.99
+gamma = 0.95
 
-#Building the Optimizers
-#White Policy Optimizer
-params_white_policy = list(model.conv1.parameters()) + list(model.conv2.parameters()) + list(model.conv3.parameters()) + list(model.fc1_policy_white.parameters()) + list(model.fc2_policy_white.parameters()) + list(model.fc3_policy_white.parameters()) + list(model.fc4_policy_white.parameters())
-optim_white_policy = optim.AdamW(params_white_policy, lr = 10)
+beta = 0.3
 
-#Black Policy Optimizer
-params_black_policy = list(model.conv1.parameters()) + list(model.conv2.parameters()) + list(model.conv3.parameters()) + list(model.fc1_policy_black.parameters()) + list(model.fc2_policy_black.parameters()) + list(model.fc3_policy_black.parameters()) + list(model.fc4_policy_black.parameters())
-optim_black_policy = optim.AdamW(params_black_policy, lr = 10)
-
-#White Promotions Optimizer
-params_white_pro = list(model.conv1.parameters()) + list(model.conv2.parameters()) + list(model.conv3.parameters()) + list(model.fc1_promotion_white.parameters()) + list(model.fc2_promotion_white.parameters())
-optim_white_pro = optim.AdamW(params_white_pro, lr = 10)
-
-#Black Promotions Optimizer 
-params_black_pro = list(model.conv1.parameters()) + list(model.conv2.parameters()) + list(model.conv3.parameters()) + list(model.fc1_promotion_black.parameters()) + list(model.fc2_promotion_black.parameters())
-optim_black_pro = optim.AdamW(params_black_pro, lr = 10)
-
-#White Value Optimizer
-params_white_value = list(model.conv1.parameters()) + list(model.conv2.parameters()) + list(model.conv3.parameters()) + list(model.fc1_value_white.parameters()) + list(model.fc2_value_white.parameters())
-optim_white_value = optim.AdamW(params_white_pro, lr = 10)
-
-#Black Value Optimizer
-params_black_value = list(model.conv1.parameters()) + list(model.conv2.parameters()) + list(model.conv3.parameters()) + list(model.fc1_value_black.parameters()) + list(model.fc2_value_black.parameters())
-optim_black_value = optim.AdamW(params_black_pro, lr = 10)
+optimizer = optim.AdamW(model.parameters(), lr = 0.001)
 
 torch.autograd.set_detect_anomaly(True)
 
-#Training Loop
-for _ in range(100):
+fig2, ax2 = bd.get_fig_ax()
 
-    # #model_path = 'AldarionChessEngine.pth'
-    # if os.path.exists(model_path):
-    #     # Load the saved model
-    #     model.load_state_dict(torch.load(model_path))
-    #     print("Loaded existing model.")
+#Load up the workbook
+workbook = openpyxl.load_workbook('Training_Result.xlsx')
+sheet = workbook.active
+game_num = sheet[sheet.max_row][0].value
+
+
+#Plotting Utlities
+game_num_ = []
+white_actor_ = []
+white_critic_ = []
+
+black_actor_ = []
+black_critic_ = []
+
+
+first = True
+for i in sheet.iter_rows(values_only=True):
+    if first:
+        first = False
+        continue
+    game_num_.append(i[0])
+    white_actor_.append(i[1])
+    white_critic_.append(i[2])
+    black_actor_.append(i[5])
+    black_critic_.append(i[6])
+
+
+#'''
+for _ in range(10000):
+
+    game_num += 1
+
+    # Load the saved model
+    model_path = 'AldarionChessEngine.pth'
+    if os.path.exists(model_path):
+        model.load_state_dict(torch.load(model_path))
 
     #Initializing the board
     board = chess.Board()
@@ -69,47 +67,34 @@ for _ in range(100):
     fig, ax = bd.get_fig_ax()
     bd.render_board(board, fig, ax)
 
-    promotion_loss_black = 0
-    promotion_loss_white = 0
+    #Variables to include in the Excel Sheet
+    white_actor_loss = 0
+    white_critic_loss = 0
+    white_pro_loss = 0
+    white_reward = 0
 
-    policy_loss_black = 0
-    policy_loss_white = 0
-
-    value_loss_black = 0
-    value_loss_white = 0
-
-    reward_black = 0
-    reward_white = 0
-
-    move_turn = 0
-
-    move_num = []
-    policy_loss = []
-
-    inverter = {True: False, False: True}
+    black_actor_loss = 0
+    black_critic_loss = 0
+    black_pro_loss = 0
+    black_reward = 0
+    game_result = -1 # -1: no result yet, 0: tied, 1: white wins, 2: black wins
 
     while True:
-
-        move_turn += 1
-        move_num.append(move_turn)
+        
+        reward_black = 0
+        reward_white = 0
 
         #------------------------------------------WHITE's TURN------------------------------------------#
 
         #Getting the move distributions
-        #print("White's Turn")
         board_before = board.fen()
         array = br.board_to_array(board.fen())
         array = torch.tensor(array)
         move1_black, move1_white, pro_output_white, pro_output_black, value_black, value_white = model(array)
-
-        params_before = {}
-        for name, param in model.named_parameters():
-            params_before[name] = param.clone()
-
         move1_white = move1_white.clone()
         
         #Applying the move
-        best_move, move_ind, pro_ind = br.best_moves(board.fen(), move1_white[0], pro_output_white[0])
+        best_move, move_ind, pro_ind, act_space_prob = br.best_moves(board.fen(), move1_white[0], pro_output_white[0])
         move = chess.Move.from_uci(best_move)
         bd.render_board(board, fig, ax, move = str(move))
         board_after = board.fen()
@@ -119,146 +104,131 @@ for _ in range(100):
         array2 = torch.tensor(array2)
         _, _, _, _, _, next_value_white = model(array2)
 
+        #Zeroing out the gradients
+        optimizer.zero_grad()
+
+        #Assigning 100 reward to white if White win
+        if board.is_game_over():
+            if board.result() == "1-0":
+                reward_white += 50
+
         #Calculating the reward
-        reward_white = br.get_reward(board_before, board_after)
-        #print("Reward: " + str(reward_white))
+        reward_white += br.get_reward(board_before, board_after)
+        white_reward += reward_white
 
-        #Updating the Critic
-        td_error = reward_white + gamma * next_value_white - value_white
-        value_loss_white = td_error.pow(2).mean()
-        optim_white_value.zero_grad()
+        #Obtaining Critic Loss
+        td_error = value_white - (reward_white + gamma * next_value_white)
+        value_loss_white = td_error.pow(2)
+        white_critic_loss += td_error.pow(2).item()
         value_loss_white.backward(retain_graph=True)
-        #print("Critic Error: " + str(value_loss_white.item()))
 
-        #Updating the Actor
-        advantage = td_error.detach()
-        #print("Advantage: " + str(advantage.item()))
-        selected_prob = move1_white[0, move_ind]
-        policy_loss_white = -torch.log(selected_prob) * advantage
-        optim_white_policy.zero_grad()
+        #Obtaining Entropy Loss
+        entropy_loss_white = 0
+        for i in act_space_prob:
+            entropy_loss_white += i *  -torch.log(torch.tensor(i))
+
+        #Obtaining Actor Loss
+        advantage = reward_white + next_value_white - value_white
+        policy_loss_white = (-torch.log(move1_white[0, move_ind]) * advantage) - (beta * entropy_loss_white)
+        white_actor_loss += policy_loss_white.item()
         policy_loss_white.backward(retain_graph=True)
-        policy_loss.append(policy_loss_white.item())
-        #print("Policy Error: " + str(policy_loss_white.item()))
 
-        #Updating the Promotions
+        #Obtaining Promotion Loss
         if pro_ind is not None:
             promotion_loss_white = -torch.log(pro_output_white[0][pro_ind]) * advantage
-            optim_white_pro.zero_grad()
+            white_pro_loss += promotion_loss_white.item()
             promotion_loss_white.backward(retain_graph=True)
-            #print("Promotion Error: " + str(promotion_loss_white.item()))
-        #print("\n\n\n")
-
-        optim_white_value.step()
-        params_after = {}
-        for name, param in model.named_parameters():
-            params_after[name] = param.clone()
-        print("check length: " + str(len(params_before) == len(params_after)))
-        print("length: " + str(len(params_after)))
-        for i in params_after:
-            print(str(i) + ": " + str(inverter[torch.equal(params_after[i], params_before[i])]))
-
-        optim_white_policy.step()
-        if pro_ind is not None:
-            optim_white_pro.step()
+        optimizer.step()
 
         if board.is_game_over():
-            print("AFTER WHITE MOVED")
             if board.result() == '1/2-1/2':
-                print("Tied")
+                game_result = 0
             else:
                 if board.result() == "1-0":
-                    print("White Won")
+                    game_result = 1
                 if board.result() == "0-1":
-                    print("Black Won")
+                    game_result = 2
             break
 
         #------------------------------------------BLACK's TURN------------------------------------------#
 
         #Getting the move distributions
-        #print("Black's Turn")
         board_before_2 = board.fen()
         array = br.board_to_array(board.fen())
         array = torch.tensor(array)
         move2_black, move2_white, pro_output_white, pro_output_black, value_black, value_white = model(array)
-
-        if board.turn:
-            move2_clone = move2_white.clone()
-            pro2_ = pro_output_white.clone()
-        else:
-            move2_clone = move2_black.clone()
-            pro2_ = pro_output_black.clone()
+        move2_black = move2_black.clone()
 
         #Applying the move
-        best_move2, move_ind2, pro_ind2 = br.best_moves(board.fen(), move2_clone[0], pro2_[0])
+        best_move2, move_ind2, pro_ind2, act_space_prob2 = br.best_moves(board.fen(), move2_black[0], pro_output_black[0])
         move2 = chess.Move.from_uci(best_move2)
         bd.render_board(board, fig, ax, move = str(move2))
-        board_after_2 = board.fen()
+        board_after_2 = board.fen() 
 
         #Finding the value of the next state
         array_black2 = br.board_to_array(board.fen())
         array_black2 = torch.tensor(array_black2)
         _, _, _, _, next_value_black, _ = model(array_black2)
 
+        #Zeroing out the Gradients
+        optimizer.zero_grad()
+
+        #Assigning 100 reward to black if Black win
+        if board.is_game_over():
+            if board.result() == "0-1":
+                reward_black += 50
+
         #Calculating the reward
-        reward_black = br.get_reward(board_before_2, board_after_2)
-        #print("Reward: " + str(reward_black))
+        reward_black += br.get_reward(board_before_2, board_after_2)
+        black_reward += reward_black
 
-        #Updating the Critic
-        td_error = reward_white + gamma * next_value_black - value_black
-        value_loss_black = td_error.pow(2).mean()
-        optim_black_value.zero_grad()
+        #Obtaining Critic Loss
+        td_error = value_black - (reward_black + gamma * next_value_black)
+        value_loss_black = td_error.pow(2)
+        black_critic_loss += value_loss_black.item()
         value_loss_black.backward(retain_graph = True)
-        #print("Critic Error: " + str(value_loss_black.item()))
 
-        #Updating the Actor
-        advantage = td_error.detach().clone()
-        #print("Advantage: " + str(advantage.item()))
-        policy_loss_black = -torch.log(move2_clone[0][move_ind2]) * advantage
-        optim_black_policy.zero_grad()
+        #Obtaining Entropy Loss
+        entropy_loss_black = 0
+        for i in act_space_prob2:
+            entropy_loss_black += i *  -torch.log(torch.tensor(i))
+
+        #Obtaining Actor Loss
+        advantage = reward_black + next_value_black - value_black
+        policy_loss_black = (-torch.log(move2_black[0, move_ind2]) * advantage) - (beta * entropy_loss_black)
+        black_actor_loss += policy_loss_black.item()
         policy_loss_black.backward(retain_graph = True)
-        #print("Policy Error: " + str(policy_loss_black.item()))
 
-        #Updating the Promotions
+        #Obtaining Promotion Loss
         if pro_ind2 is not None:
-            promotion_loss_black = -torch.log(pro2_[0][pro_ind2]) * advantage
-            #print(promotion_loss_black.shape)
-            #print(promotion_loss_black)
-            optim_black_pro.zero_grad()
+            promotion_loss_black = -torch.log(pro_output_black[0][pro_ind2]) * advantage
+            black_pro_loss += promotion_loss_black.item()
             policy_loss_black.backward(retain_graph = True)
-            #print("Promotion Error: " + str(promotion_loss_black.item()))
-        #print("\n\n\n")
-
-        optim_black_policy.step()
-        optim_black_value.step()
-        if pro_ind2 is not None:
-            optim_black_pro.step()
+        optimizer.step()
 
         if board.is_game_over():
-            print("AFTER BLACK MOVED")
             if board.result() == '1/2-1/2':
-                print("Tied")
+                game_result = 0
             else:
                 if board.result() == "1-0":
-                    print("White Won")
+                    game_result = 1
                 if board.result() == "0-1":
-                    print("Black Won")
+                    game_result = 2
             break
 
     #------------------------------------------GAME OVER------------------------------------------#
     plt.close(fig)
 
-    #torch.save(model.state_dict(), model_path)
+    new_entry = [game_num, white_actor_loss, white_critic_loss, white_pro_loss, white_reward, black_actor_loss, black_critic_loss, black_pro_loss, black_reward, game_result]
+    sheet.append(new_entry)
+    workbook.save('Training_Result.xlsx')
+    torch.save(model.state_dict(), model_path)
+
+    #Plotting
+    game_num_.append(new_entry[0])
+    white_actor_.append(new_entry[1])
+    white_critic_.append(new_entry[2])
+    black_actor_.append(new_entry[5])
+    black_critic_.append(new_entry[6])
+    bd.plot_loss(fig2, ax2, game_num_, white_actor_, white_critic_, black_actor_, black_critic_)
 #'''
-
-
-# import torch
-
-# # Create two tensors
-# tensor1 = torch.tensor([1, 2, 2])
-# tensor2 = torch.tensor([1, 2, 2.00000000000000000001])
-
-# # Check if the tensors are equal
-# are_equal = torch.equal(tensor1, tensor2)
-
-# # Print the result
-# print(f"Are the tensors equal? {are_equal}")
