@@ -34,10 +34,15 @@ def render_board(board, fig, ax, move=None,):
     plt.pause(0.1)  # Add a small delay to allow for rendering
 
 
-def plot_loss(fig, ax, x, y):
+def plot_loss(fig, ax, x, y1, y2, y3, y4):
 
     # Clear the existing figure
     ax.cla()
-    plt.plot(x,y)
+    plt.title("Losses for each Game")
+    plt.plot(x,y1, label = "White Actor Loss")
+    plt.plot(x,y2, label = "White Critic Loss")
+    plt.plot(x,y3, label = "Black Actor Loss")
+    plt.plot(x,y4, label = "Black Critic Loss")
+    plt.legend(loc = 'best')
     plt.draw()
     plt.pause(0.1)  # Add a small delay to allow for rendering

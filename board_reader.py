@@ -84,18 +84,26 @@ def get_mask(board, pro_output):
 		mask[(coords[0][0] + ((coords[0][1] - 1) * 8)) - 1][(coords[1][0] + ((coords[1][1] - 1) * 8)) -1] = 1
 	return mask
 
+def multi_indices_to_flat_index(indices, shape):
+	flat_index = torch.flatten_multi_index(indices.t(), shape)
+	return flat_index
 
 #Takes in the fen board and policy_output tensor and outputs a uci best move
 def best_moves(board, policy_output, pro_output):
 	mapping_re = {1: 'a', 2: 'b', 3: 'c', 4: 'd', 5:'e', 6:'f', 7:'g', 0:'h'}
 	policy_output = policy_output.reshape(64,-1)
 	mask = get_mask(board, pro_output)
+	indices = torch.nonzero(mask != 0, as_tuple=False)
 	
 	policy_output += 1e-10
 	policy_output *= mask
+
+	action_space_prob = []
+	for i in indices:
+		action_space_prob.append(policy_output[i[0], i[1]].item())
+
 	shape_1 = policy_output.shape[1]
 	policy_output = policy_output.view(-1)
-
 	pro_move = None
 	max_coordinates = torch.multinomial(policy_output, 1).item()
 	move_prob = policy_output[max_coordinates]
@@ -112,7 +120,7 @@ def best_moves(board, policy_output, pro_output):
 		pro_mapping = {0: 'q', 1: 'r', 2: 'b', 3: 'n'}
 		pro_move = torch.multinomial(pro_output, 1).item()
 		move += pro_mapping[pro_move]
-	return move, max_coordinates, pro_move
+	return move, max_coordinates, pro_move, action_space_prob
 
 def generate_random_board():
     # Create a new chess board
