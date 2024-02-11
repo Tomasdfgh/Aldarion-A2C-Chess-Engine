@@ -45,9 +45,11 @@ def set_values(matrix, coordinates, value):
     return matrix
 
 #This function converts the board into a 6,8,8 array
-def board_to_array(board):
+def board_to_array(board, turn):
 	#set up all the mappings
 	piece_mapping = {'R': 'r', 'N': 'n', 'B': 'b', 'Q': 'q', 'K': 'k', 'P':'p'}
+	turn_mapping_you = {True: 1, False: -1}
+	turn_mapping_op = {True: -1, False: 1}
 
 	board = chess.Board(board)
 
@@ -60,8 +62,8 @@ def board_to_array(board):
 		matrix = np.zeros((8, 8))
 		your_cord = find_piece_coordinates(board, i)
 		op_cord = find_piece_coordinates(board, piece_mapping[i])
-		matrix = set_values(matrix, your_cord, 1)
-		matrix = set_values(matrix, op_cord, -1)
+		matrix = set_values(matrix, your_cord, turn_mapping_you[turn])
+		matrix = set_values(matrix, op_cord, turn_mapping_op[turn])
 		array.append(matrix)
 	return np.array(array)
 
@@ -174,3 +176,7 @@ def get_reward(board_before, board_after):
 	for i in piece_captured:
 		reward += piece_captured[i] * score_mapping[i]
 	return reward
+
+
+#Beginning Board:
+#rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
