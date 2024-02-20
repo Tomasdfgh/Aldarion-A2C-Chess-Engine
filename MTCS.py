@@ -1,10 +1,15 @@
-#Monte Carlo Tree Search
 import chess
-import torch
-import model as md
 import board_reader as br
 import board_display as bd
-import os
+
+##################################################################################################################################
+#													Monte Carlo Tree search 													 #
+#																																 #
+#	This script runs Monte Carlo Tree search. It takes in a chess board (fen string), the neural network model, the temperature, #
+#	and the number of sims to run per move. Main function to call is run_game(). The rest of the functions are accessories that  #
+#	help set up the tree, expand the tree, find the UCB score, and run the simulations.											 #
+#																																 #
+##################################################################################################################################
 
 class MTCSNode:
 	def __init__(self, team, state, action, n, w, q, p):
@@ -48,15 +53,22 @@ def UCB(parent, child, prnt = False):
 	return value_score + U
 
 def expand(node, policy):
-	policy = policy.reshape(64,-1)
+	pro_policy = policy[0][4096:]
+	policy = policy[0][:4096].reshape(64,-1)
 	move_mapper = {}
+	pro_mapper = br.pro_mapper()
 
 	for i in chess.Board(node.state).legal_moves:
 		coords = br.legal_move_to_coord(str(i))
-		# if len(str(i)) > 4:
-		# 	print(str(i))
-		# 	print(coords)
-		move_mapper[str(i)] = policy[(coords[0][0] + ((coords[0][1] - 1) * 8)) - 1][(coords[1][0] + ((coords[1][1] - 1) * 8)) -1].item()
+		
+		#A normal move (not a promotion move)
+		if len(coords) == 2:
+			move_mapper[str(i)] = policy[(coords[0][0] + ((coords[0][1] - 1) * 8)) - 1][(coords[1][0] + ((coords[1][1] - 1) * 8)) -1].item()
+		
+		#Pawn Promotion move. Cannot use the first 4096 elements of the tensor
+		if len(coords) == 3:
+			move_mapper[str(i)] = pro_policy[pro_mapper[(coords[0], coords[1], coords[2])]].item()
+
 	move_mapper = normalize_list(move_mapper)
 
 	for i in chess.Board(node.state).legal_moves:
@@ -65,7 +77,6 @@ def expand(node, policy):
 		child_node = MTCSNode(board_temp.turn, board_temp.fen(), i, 0, 0, 0, move_mapper[str(i)])
 		child_node.UCB = UCB(node, child_node)
 		node.add_child(child_node)
-	move_mapper = normalize_list(move_mapper)
 
 def normalize_list(inp_hash):
 	sum_ = 0
@@ -80,7 +91,7 @@ def run_simulation(root, sim, model):
 
 	#Expand the root
 	if len(root.children) == 0:
-		policy, pro, value = model(torch.tensor(br.board_to_array(chess.Board(root.state).fen(), root.team)))
+		policy, value = model(br.board_to_array(chess.Board(root.state).fen(), root.team))
 		expand(root, policy)
 
 
@@ -109,7 +120,7 @@ def run_simulation(root, sim, model):
 				queue.append(node)
 
 		#Expand
-		policy, pro, value = model(torch.tensor(br.board_to_array(chess.Board(search_path[-1].state).fen(), search_path[-1].team)))
+		policy, value = model(br.board_to_array(chess.Board(search_path[-1].state).fen(), search_path[-1].team))
 		expand(search_path[-1], policy)
 
 		#The value above is the value of the current state for the chosen team. We need to backprop that value back up the tree
@@ -125,58 +136,57 @@ def run_simulation(root, sim, model):
 				n.UCB = UCB(search_path[ind-1], n)
 
 
-def run_game(model):
+def run_game(model, temperature, num_sim):
+	
 	# Create nodes
-	root = MTCSNode(True, "8/8/2bb4/6kp/2p5/2P4K/5p2/8 b - - 0 71", None, 0, 0, None, None)
-	#root = MTCSNode(True, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", None, 0, 0, None, None)
+	root = MTCSNode(True, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", None, 0, 0, None, None)
 	root.UCB = False
 	node = root
 	path_taken = []
-	game_result = {True: 0, False: 0}
 
 	fig, ax = bd.get_fig_ax()
-	bd.render_board(chess.Board(root.state), fig, ax)
+	board = chess.Board(node.state)
+	bd.render_board(board, fig, ax)
 
 	while True:
 
-		move_mapper = {}
+		move_mapper_ = {}
 		
 		#Running Simulations
-		run_simulation(node, 30, model)
-		#print_tree(node)
-		break
+		run_simulation(node, num_sim, model)
 
 		#Capturing the Probabilities from MTCS to put in training data
 		for i in node.children:
-			move_mapper[str(i.action)] = i.N/ node.N
-		path_taken.append([node.state, str(move_mapper), node.team])
+			move_mapper_[str(i.action)] = i.N/ node.N
+		path_taken.append([node.state, str(move_mapper_), node.team, node.W])
 
 		#Picking the best Node
-		best_N = -float('inf')
-		best_node = None
+		prob_dist = []
+		cors_move = []
 		for i in node.children:
-			if i.N > best_N:
-				best_N = i.N
-				best_node = i
+			prob_dist.append(i.N)
+			cors_move.append(i)
+		
+		for i in range(len(prob_dist)):
+			prob_dist[i] = prob_dist[i] ** (1/temperature)
+
+		test_c = prob_dist.copy()
+		for i in range(len(test_c)):
+			prob_dist[i] /= sum(test_c)
+
+		prob_dist = br.array_to_tensor(prob_dist)
+		ind_choice = br.prob_sampler(prob_dist, 1)
+		best_node = cors_move[ind_choice]
 
 		#Eliminating all other branches
 		for z,i in enumerate(node.children.copy()):
 			if i.state != best_node.state:
 				node.children.remove(i)
 		node = best_node
-		print("Chosen Action: " + str(node.action))
 
-		bd.render_board(chess.Board(node.state), fig, ax)
+		bd.render_board(board, fig, ax, move = str(node.action))
 
 		if chess.Board(node.state).is_game_over():
-			if chess.Board(node.state).result() == "1-0":
-				game_result[True] = 1
-				game_result[False] = -1
-			if chess.Board(node.state).result() == "0-1":
-				game_result[True] = -1
-				game_result[False] = 1
-			for i in path_taken:
-				i.append(game_result[i[2]])
 			break
 
 	return path_taken

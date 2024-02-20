@@ -1,5 +1,4 @@
 import torch.nn as nn
-from torch.utils.data import Dataset
 
 class ChessNet(nn.Module):
     def __init__(self):
@@ -14,11 +13,7 @@ class ChessNet(nn.Module):
         self.fc1_policy = nn.Linear(128 * 8 * 8, 512)
         self.fc2_policy = nn.Linear(512, 64)
         self.fc3_policy = nn.Linear(64, 64)
-        self.fc4_policy = nn.Linear(64, 4096)
-
-        # Fully connected layers for promotions
-        self.fc1_promotion = nn.Linear(128 * 8 * 8, 256)
-        self.fc2_promotion = nn.Linear(256, 4)
+        self.fc4_policy = nn.Linear(64, 4272) #4272 #4096 #176
 
         # Fully connected layers for value (Critic Network)
         self.fc1_value = nn.Linear(128 * 8 * 8, 256)
@@ -43,12 +38,8 @@ class ChessNet(nn.Module):
         policy = self.fc4_policy(policy)
         policy = self.softmax(policy)
 
-        # Promotions Network for white
-        promotions = self.relu(self.fc1_promotion(x))
-        promotions = self.softmax(self.fc2_promotion(promotions))
-
         # Value network for black
         value = self.relu(self.fc1_value(x))
         value = self.tanh(self.fc2_value(value))
 
-        return policy, promotions, value
+        return policy, value
