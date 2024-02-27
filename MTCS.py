@@ -136,7 +136,7 @@ def run_simulation(root, sim, model):
 				n.UCB = UCB(search_path[ind-1], n)
 
 
-def run_game(model, temperature, num_sim):
+def run_game(model, temperature, num_sim, fig, ax):
 	
 	# Create nodes
 	root = MTCSNode(True, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", None, 0, 0, None, None)
@@ -144,9 +144,10 @@ def run_game(model, temperature, num_sim):
 	node = root
 	path_taken = []
 
-	fig, ax = bd.get_fig_ax()
 	board = chess.Board(node.state)
 	bd.render_board(board, fig, ax)
+
+	game_result = {True: 0, False: 0}
 
 	while True:
 
@@ -158,7 +159,7 @@ def run_game(model, temperature, num_sim):
 		#Capturing the Probabilities from MTCS to put in training data
 		for i in node.children:
 			move_mapper_[str(i.action)] = i.N/ node.N
-		path_taken.append([node.state, str(move_mapper_), node.team, node.W])
+		path_taken.append([node.state, str(move_mapper_), node.team])
 
 		#Picking the best Node
 		prob_dist = []
@@ -167,7 +168,7 @@ def run_game(model, temperature, num_sim):
 			prob_dist.append(i.N)
 			cors_move.append(i)
 		
-		for i in range(len(prob_dist)):
+		for i in range(len(prob_dist)):	
 			prob_dist[i] = prob_dist[i] ** (1/temperature)
 
 		test_c = prob_dist.copy()
@@ -187,6 +188,15 @@ def run_game(model, temperature, num_sim):
 		bd.render_board(board, fig, ax, move = str(node.action))
 
 		if chess.Board(node.state).is_game_over():
+			if chess.Board(node.state).result() == "1-0":
+				game_result[True] = 1
+				game_result[False] = -1
+			if chess.Board(node.state).result() == "0-1":
+				game_result[True] = -1
+				game_result[False] = 1
+			for i in path_taken:
+				i.append(game_result[i[2]])
+
 			break
 
 	return path_taken
