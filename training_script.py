@@ -46,7 +46,7 @@ def training(model, trainingSplit, validationSplit, batch_size, sheet, optimizer
     print("Number of rows in excel: " + str(sheet.max_row))
     pro_mapper = br.pro_mapper()
     dataset = []
-    for _ in range(1,101):
+    for _ in range(1,min(2000, sheet.max_row // 2)):
         ran_num = random.randint(1, sheet.max_row)
         dataset.append((sheet[ran_num][0],sheet[ran_num][1],sheet[ran_num][3]))
     all_moves = br.get_all_moves()
@@ -56,8 +56,8 @@ def training(model, trainingSplit, validationSplit, batch_size, sheet, optimizer
     train_loader = torch.utils.data.DataLoader(train_set, batch_size = batch_size, shuffle = False)
     validation_loader = torch.utils.data.DataLoader(validation_set, batch_size = batch_size, shuffle = True)
     test_loader = torch.utils.data.DataLoader(test_set, batch_size = batch_size, shuffle = True)
+    overall_loss  = []
 
-    #'''
     for epoch in range(1, epoch + 1):
         print("Epoch: " + str(epoch))
         training_loss = 0
@@ -155,6 +155,10 @@ def training(model, trainingSplit, validationSplit, batch_size, sheet, optimizer
         print("Validation Loss: " + str(validation_loss.item()))
         print('\n')
 
+        #Recording the loss to add to the training stats
+        overall_loss.append([training_loss.item(), validation_loss.item(), None])
+
+
     #Testing Set
     with torch.no_grad():
 
@@ -195,5 +199,6 @@ def training(model, trainingSplit, validationSplit, batch_size, sheet, optimizer
             testing_loss += test_loss.detach()
 
     print("Testing Loss: " + str(testing_loss.item()))
-    torch.save()
-    #'''
+    torch.save(model.state_dict(),'Aldarion_Alpha_Zero.pth')
+    overall_loss.append([None, None, testing_loss.item()])
+    return overall_loss
