@@ -13,5 +13,7 @@ Welcome to Aldarion, a chess engine trained using an adapted AlphaZero algorithm
 ## The Policy: How to get a move from a policy
 
 ### Policy Structure
-#### Non-pawn promotional moves
-Designing a move-mapping structure for chess poses a unique challenge due to the nature of chess moves. Unlike games like Go, where each move involves simply placing a stone onto the board, chess moves require displacing a piece from its original position to a new one. Consequently, the policy for chess needs to incorporate an additional dimension to account for both the original and final positions of a piece for each move. A Chess board is 8 by 8, that means there are 64 total squares in each board. To create a policy that incorporate a piece's original and final position, a policy vector of 4096 elements can be used to generate a move. A 4096 elements policy vector (or 64 x 64 elements) means that for each square, there are 64 elements. That means determining what moves to play can simpl
+#### Non-pawn Promotional Moves
+Designing a move-mapping structure for chess poses a unique challenge due to the nature of chess moves. Unlike games like Go, where each move involves simply placing a stone onto the board, chess moves require displacing a piece from its original position to a new one. Consequently, the policy for chess needs to incorporate an additional dimension to account for both the original and final positions of a piece for each move. A Chess board is 8 by 8, that means there are 64 total squares in each board. To create a policy that incorporate a piece's original and final position, a policy vector of 4096 elements can be used to generate a move. A 4096 elements policy vector (or 64 x 64 elements) means that for each square, there are 64 elements. That means that each index in the policy means a specific move of a piece from one square to another square. This setup, however, does not consider pawn promotional moves.
+
+#### Pawn Promotional Moves
