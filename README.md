@@ -1,7 +1,7 @@
 # Aldarion: Actor-Critic, Reinforcement Learning Chess Engine
 
 <p align="center">
-  <img src="https://github.com/Tomasdfgh/Aldarion-A2C-Chess-Engine/assets/86145397/44381ed4-ac65-4c96-8513-901336e4223c" alt="Aldarion Chess Engine" width="200">
+  <img src="https://github.com/Tomasdfgh/Aldarion-A2C-Chess-Engine/assets/86145397/44381ed4-ac65-4c96-8513-901336e4223c" alt="Aldarion Chess Engine" width="300">
 </p>
 
 ## Introduction
@@ -53,7 +53,7 @@ Designing a move-mapping structure for chess poses a unique challenge due to the
 <p align="center">
   <img src="https://github.com/Tomasdfgh/Aldarion-A2C-Chess-Engine/assets/86145397/6a44b90d-74d0-4979-8c85-bdfee2c4632b" width="325" alt="chessBoard">
   <br>
-  <em>Figure 1: Chess Board Layout</em>
+  <em>Figure 5: Chess Board Layout</em>
 </p>
 
 #### Pawn Promotional Moves
@@ -62,6 +62,8 @@ Pawn promotion adds complexity to the policy because each pawn has the potential
 <p align = "center">
   <img src = "https://github.com/Tomasdfgh/Aldarion-A2C-Chess-Engine/assets/86145397/f4769739-d6b0-43a3-9118-71d2723d543b" width = "325" alt = "promotionalChessBoard">
   <br>
-  <em>Figure 2: Every Possible Pawn Promotional Move</em>
+  <em>Figure 6: Every Possible Pawn Promotional Move</em>
 </p>
 
+### How a move is selected
+Due to the fact that the policy vector considers every possible moves in the chess domain, even moves that will never be played by any pieces, a majority of the elements in the policy vector will never be utilized. As a result, Before the best move is selected from the policy vector, every legal moves from a state is determined and used to apply a mask on the policy vector.
