@@ -11,6 +11,24 @@ Welcome to Aldarion, a chess engine trained using an adapted AlphaZero algorithm
 ## How to read the Chess Board
 The goal of processing the chessboard is to transform the physical game board into a format that the model can comprehend. With 6 distinct types of pieces in chess, the board is converted into a tensor with a shape of 9 x 8 x 8. The initial 6 features are dedicated to piece location, while the remaining 3 denote the player's turn. This transformation essentially creates an image with 9 features, unlike the typical RGB images with 3 features, and a size of 8 by 8. Each of the first 6 features corresponds to a piece type and its respective position on the board. Player turns are indicated by a value of 1 for the active player's pieces and -1 for the opponent's. The final 3 features signify whose turn it is; if White is to play next, these layers are filled with 1's, and if it's Black's turn, they're filled with -1's.
 
+As a reference, for a starting chess board like this:
+
+<p align="center">
+  <img src="https://github.com/Tomasdfgh/Aldarion-A2C-Chess-Engine/assets/86145397/afad76f7-7ae3-4f93-9198-3d45e5a55f41" width="375" alt="chessBoard">
+  <br>
+  <em>Figure 1: Starting Chess Board</em>
+</p>
+
+A visualization of the bit map would look like this:
+
+<p align="center">
+  <img src= "https://github.com/Tomasdfgh/Aldarion-A2C-Chess-Engine/assets/86145397/ee5d36a6-4ced-4c7d-b8df-810f6aca4ab0" width="1000" alt="chessBoard">
+  <br>
+  <em>Figure 2: Visualization of Bit Map of Starting Chess Board</em>
+</p>
+
+
+
 ## The Policy: How to get a move from a policy
 
 ### Policy Structure
