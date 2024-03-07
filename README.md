@@ -74,4 +74,17 @@ Due to the fact that the policy vector considers every possible moves in the che
   <em>Figure 7: Every Legal Move of Current State</em>
 </p>
 
-There are 32 legal moves in this state, as a result, a mask will be applied to the rest of the elements in the policy. As a result, there will only be 32 non zero elements in the policy. To pick the next move, either sample from the non zero elements or pick the element with the highest probability. Map the index of that element to find the next move. 
+There are 32 legal moves in this state, as a result, a mask will be applied to the rest of the elements in the policy. As a result, there will only be 32 non zero elements in the policy. To pick the next move, either sample from the non zero elements or pick the element with the highest probability. Map the index of that element to find the next move. lets say if the policy vector is as follows:
+
+
+$$ [0, 0, .... , 0.46, ...., 0, 0] $$
+
+Where the element with a probability of 0.46 percent has been selected and is at an index of 158 in the policy vector. Mapping this back, this means the move selected is c1f4 since they are on the 30th element of the 3rd 64 square board. In another word they are at
+
+$$ 2 × 64 + 30 = 158 $$
+
+Which means they are moving from the 3rd square to the 30th square in the board, or c1f4.
+
+## Monte Carlo Tree Search Traversal
+
+MCTS is a process used only during training that helps the model to predicts the best move to play. MTCS 
