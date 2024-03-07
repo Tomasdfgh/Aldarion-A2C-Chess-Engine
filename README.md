@@ -66,4 +66,12 @@ Pawn promotion adds complexity to the policy because each pawn has the potential
 </p>
 
 ### How a move is selected
-Due to the fact that the policy vector considers every possible moves in the chess domain, even moves that will never be played by any pieces, a majority of the elements in the policy vector will never be utilized. As a result, Before the best move is selected from the policy vector, every legal moves from a state is determined and used to apply a mask on the policy vector.
+Due to the fact that the policy vector considers every possible moves in the chess domain, even moves that will never be played by any pieces, a majority of the elements in the policy vector will never be utilized. As a result, Before the best move is selected from the policy vector, every legal moves from a state is determined and used to apply a mask on the policy vector. Every non legal moves in the policy vector will be zerod out. Leaving the policy vector to only have non zero elements at index where legal moves are at. As a reference lets take a look at the randomized board again. It is currently white's turn to go:
+
+<p align = "center">
+  <img src = "https://github.com/Tomasdfgh/Aldarion-A2C-Chess-Engine/assets/86145397/76850881-99fe-48a4-8477-a83d107ae293" width = "450" alt = "promotionalChessBoard">
+  <br>
+  <em>Figure 7: Every Legal Move of Current State</em>
+</p>
+
+There are 32 legal moves in this state, as a result, a mask will be applied to the rest of the elements in the policy. As a result, there will only be 32 non zero elements in the policy. To pick the next move, either sample from the non zero elements or pick the element with the highest probability. Map the index of that element to find the next move. 
