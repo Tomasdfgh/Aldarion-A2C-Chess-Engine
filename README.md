@@ -114,3 +114,7 @@ During games of self-play, every single move made by each team is recorded for t
 - Score of that move
 
 ### Training Mechanics
+Training is a repeated process that periodically occurs as more data is generated from games of self-play. Data is extracted at random from the dataset to use to train the model. There are 3 majors components that are incorporated in the training process: The policy training, value training, and regularization. The policy network is trained by comparing the policy predicted by the model to the policy determined from the Monte Carlo Tree Search through negative log likelihood. The value network is trained by comparing the predicted value from the model to the actual value determined from self-play. Regularization is done by taking the squared Euclidean norm of the weights of the model multiplied by a constant. In combination of these three components together into one loss function, the loss function becomes:
+
+$$ L = (z-v)^2 - πlog(p) + c||θ||^2 $$
+
