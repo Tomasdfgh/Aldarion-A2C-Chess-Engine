@@ -114,7 +114,14 @@ During games of self-play, every single move made by each team is recorded for t
 - Score of that move
 
 ### Training Mechanics
-Training is a repeated process that periodically occurs as more data is generated from games of self-play. Data is extracted at random from the dataset to use to train the model. There are 3 majors components that are incorporated in the training process: The policy training, value training, and regularization. The policy network is trained by comparing the policy predicted by the model to the policy determined from the Monte Carlo Tree Search through negative log likelihood. The value network is trained by comparing the predicted value from the model to the actual value determined from self-play. Regularization is done by taking the squared Euclidean norm of the weights of the model multiplied by a constant. In combination of these three components together into one loss function, the loss function becomes:
+Training is a repeated process that periodically occurs as more data is generated from games of self-play. Data is extracted at random from the dataset to use to train the model. There are 3 majors components that are incorporated in the training process: The policy training, value training, and regularization. The loss function given is
 
 $$ L = (z-v)^2 - πlog(p) + c||θ||^2 $$
 
+The policy network is trained by comparing the policy predicted by the model to the policy determined from the Monte Carlo Tree Search through negative log likelihood. The value network is trained by comparing the predicted value from the model to the actual value determined from self-play. Regularization is done by taking the squared Euclidean norm of the weights of the model multiplied by a constant.
+
+<p align = "center">
+  <img src = "https://github.com/Tomasdfgh/Aldarion-A2C-Chess-Engine/assets/86145397/c2d428c6-0d60-4134-98a9-ad68bbdeb126" width = "850" alt = "promotionalChessBoard">
+  <br>
+  <em>Figure 9: Aldarion's Training Procedure</em>
+</p>
