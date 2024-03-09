@@ -95,7 +95,22 @@ MCTS is a process used only during training that helps the model to predicts the
 4. Backpropagation: Update the statistics of all nodes traversed during the selection phase based on the outcome of the simulation. This involves incrementing visit counts and accumulating rewards or scores, which are used to guide future selections.
 
 <p align = "center">
-  <img src = "https://github.com/Tomasdfgh/Aldarion-A2C-Chess-Engine/assets/86145397/ce2e2f27-06ac-4fe3-9800-2426f4a9d36d" width = "450" alt = "promotionalChessBoard">
+  <img src = "https://github.com/Tomasdfgh/Aldarion-A2C-Chess-Engine/assets/86145397/c2786d7c-72d6-42fc-877d-3256f30164f1" width = "450" alt = "promotionalChessBoard">
   <br>
   <em>Figure 8: The Four steps of Monte Carlo Tree Search</em>
 </p>
+
+## Training Procedures
+
+### Overview
+One of the greatest advantage of Aldarion's AlphaZero is the ability to autogenerate data through repeated games of selfplay. Due to the nature of self generating data, there are two main aspects to the trianining process: Self-play to generate data, model training using the data generated from self play. These two training aspects are repeated over and over again until the training process is done. AlphaZero separates these two processes into two different threads and allow these two threads to run simultaneously. Aldarion simplifies this process by running training and self-play together on one thread, and the two processes will take turn to run one after another. In order for Aldarion to generate a diverse enough dataset, there will be two games of self play for each training task.
+
+### Self-Play Data Collection
+During games of self-play, every single move made by each team is recorded for training purposes. As a result, each game can generate roughly 100 to 200 training data points. For each data point, the state of the environment is recorded as a fen string. The fen string gives information to where each piece is currently positioned in the board and the team that is making the next book. As mentioned in MCTS, the purpose of using the tree during self-play is to abuse the branch that is most likely to result in a win; however, it would also allow the model to see which moves are the "right" move to make based on the number of times each child is visited from the current state. As a result, the result of the MCTS is also recorded as the "correct move distribution" to compare to the model's move distribution. Lastly, the score of the move is recorded for the value head to be trained. The score is determined based on the outcome of the game. The winning team will recieve a score of 1 for everysingle move that they made in the game, and -1 for every single move made by the losing team. If the game is a tie then every move for every team is scored a 0. For each move made, these items are recorded:
+
+- State of the environment as a fen string
+- MCTS move distribution
+- Team that is playing the move
+- Score of that move
+
+### Training Mechanics
