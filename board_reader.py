@@ -78,6 +78,14 @@ def board_to_array(board, turn):
 		matrix = set_values(matrix, op_cord, turn_mapping_op[turn])
 		array.append(matrix)
 
+	if turn:
+		team_matrix = np.ones((8,8))
+	else:
+		team_matrix = np.full((8,8),-1)
+
+	for i in range(3):
+		array.append(team_matrix)
+
 	return torch.tensor(np.array(array))
 
 
