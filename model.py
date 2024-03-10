@@ -4,42 +4,142 @@ class ChessNet(nn.Module):
     def __init__(self):
         super(ChessNet, self).__init__()
 
-        # Convolutional layers for board state representation
-        self.conv1 = nn.Conv2d(6, 64, kernel_size=3, padding=1)  # Added one channel for color
-        self.conv2 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
-        self.conv3 = nn.Conv2d(128, 128, kernel_size=3, padding=1)
+        #First Convolutional Layer
+        self.conv1 = nn.Conv2d(9, 256, kernel_size = 3, padding = 1)
 
-        # Fully connected layers for policy (Actor Network)
-        self.fc1_policy = nn.Linear(128 * 8 * 8, 512)
-        self.fc2_policy = nn.Linear(512, 64)
-        self.fc3_policy = nn.Linear(64, 64)
-        self.fc4_policy = nn.Linear(64, 4272) #4272 #4096 #176
+        #First Residual Layer
+        self.conv2 = nn.Conv2d(256,256, kernel_size = 3, padding = 1)
+        self.conv3 = nn.Conv2d(256,256, kernel_size = 3, padding = 1)
 
-        # Fully connected layers for value (Critic Network)
-        self.fc1_value = nn.Linear(128 * 8 * 8, 256)
-        self.fc2_value = nn.Linear(256, 1)
+        #Second Residual Layer
+        self.conv4 = nn.Conv2d(256,256, kernel_size = 3, padding = 1)
+        self.conv5 = nn.Conv2d(256,256, kernel_size = 3, padding = 1)
 
-        # Activation functions
+        #Third Residual Layer
+        self.conv6 = nn.Conv2d(256,256, kernel_size = 3, padding = 1)
+        self.conv7 = nn.Conv2d(256,256, kernel_size = 3, padding = 1)
+
+        #Fourth Residual Layer
+        self.conv8 = nn.Conv2d(256,256, kernel_size = 3, padding = 1)
+        self.conv9 = nn.Conv2d(256,256, kernel_size = 3, padding = 1)
+
+        #Fifth Residual Layer
+        self.conv10 = nn.Conv2d(256,256, kernel_size = 3, padding = 1)
+        self.conv11 = nn.Conv2d(256,256, kernel_size = 3, padding = 1)
+
+        #Sixth Residual Layer
+        self.conv12 = nn.Conv2d(256,256, kernel_size = 3, padding = 1)
+        self.conv13 = nn.Conv2d(256,256, kernel_size = 3, padding = 1)
+
+        #Seventh Residual Layer
+        self.conv14 = nn.Conv2d(256,256, kernel_size = 3, padding = 1)
+        self.conv15 = nn.Conv2d(256,256, kernel_size = 3, padding = 1)
+
+        #Eight Residual Layer
+        self.conv16 = nn.Conv2d(256,256, kernel_size = 3, padding = 1)
+        self.conv17 = nn.Conv2d(256,256, kernel_size = 3, padding = 1)
+
+        #Ninth Residual Layer
+        self.conv18 = nn.Conv2d(256,256, kernel_size = 3, padding = 1)
+        self.conv19 = nn.Conv2d(256,256, kernel_size = 3, padding = 1)
+
+        #Tenth Residual Layer
+        self.conv20 = nn.Conv2d(256,256, kernel_size = 3, padding = 1)
+        self.conv21 = nn.Conv2d(256,256, kernel_size = 3, padding = 1)
+
+        #Value Head
+        self.conv_Value = nn.Conv2d(256, 1, kernel_size = 1)
+        self.linear1 = nn.Linear(1 * 8 * 8, 256)
+        self.linear2 = nn.Linear(256, 1)
+
+        #Policy Head
+        self.conv_Policy = nn.Conv2d(256, 2, kernel_size = 1)
+        self.linear3 = nn.Linear(2 * 8 * 8, 4272)
+
+
+
+        # Activation functions, Batch Normalization, and identity
         self.relu = nn.ReLU()
         self.softmax = nn.Softmax(dim=1)
         self.tanh = nn.Tanh()
+        self.batch_norm = nn.BatchNorm2d(256)
+        self.batch_norm_one = nn.BatchNorm2d(1)
+        self.batch_norm_two = nn.BatchNorm2d(2)
+        self.skip_connection = nn.Identity()
 
     def forward(self, x):
-        # Board state representation
-        x = self.relu(self.conv1(x))
-        x = self.relu(self.conv2(x))
-        x = self.relu(self.conv3(x))
-        x = x.view(-1, 128 * 8 * 8)  # Flatten
 
-        # Policy network for black
-        policy = self.relu(self.fc1_policy(x))
-        policy = self.relu(self.fc2_policy(policy))
-        policy = self.relu(self.fc3_policy(policy))
-        policy = self.fc4_policy(policy)
-        policy = self.softmax(policy)
+        #First Convolutional Layer
+        x = self.relu(self.batch_norm(self.conv1(x)))
 
-        # Value network for black
-        value = self.relu(self.fc1_value(x))
-        value = self.tanh(self.fc2_value(value))
+        #First Residual Layer
+        identity = self.skip_connection(x)
+        x = self.batch_norm(self.conv3(self.relu(self.batch_norm(self.conv2(x)))))
+        x += identity
+        x = self.relu(x)
+
+        #Second Residual Layer
+        identity = self.skip_connection(x)
+        x = self.batch_norm(self.conv5(self.relu(self.batch_norm(self.conv4(x)))))
+        x += identity
+        x = self.relu(x)
+
+        #Third Residual Layer
+        identity = self.skip_connection(x)
+        x = self.batch_norm(self.conv7(self.relu(self.batch_norm(self.conv6(x)))))
+        x += identity
+        x = self.relu(x)
+
+        #Fourth Residual Layer
+        identity = self.skip_connection(x)
+        x = self.batch_norm(self.conv9(self.relu(self.batch_norm(self.conv8(x)))))
+        x += identity
+        x = self.relu(x)
+
+        #Fifth Residual Layer
+        identity = self.skip_connection(x)
+        x = self.batch_norm(self.conv11(self.relu(self.batch_norm(self.conv10(x)))))
+        x += identity
+        x = self.relu(x)
+
+        #Sixth Residual Layer
+        identity = self.skip_connection(x)
+        x = self.batch_norm(self.conv13(self.relu(self.batch_norm(self.conv12(x)))))
+        x += identity
+        x = self.relu(x)
+
+        #Seventh Residual Layer
+        identity = self.skip_connection(x)
+        x = self.batch_norm(self.conv15(self.relu(self.batch_norm(self.conv14(x)))))
+        x += identity
+        x = self.relu(x)
+
+        #Eighth Residual Layer
+        identity = self.skip_connection(x)
+        x = self.batch_norm(self.conv17(self.relu(self.batch_norm(self.conv16(x)))))
+        x += identity
+        x = self.relu(x)
+
+        #Ninth Residual Layer
+        identity = self.skip_connection(x)
+        x = self.batch_norm(self.conv19(self.relu(self.batch_norm(self.conv18(x)))))
+        x += identity
+        x = self.relu(x)
+
+        #Tenth Residual Layer
+        identity = self.skip_connection(x)
+        x = self.batch_norm(self.conv21(self.relu(self.batch_norm(self.conv20(x)))))
+        x += identity
+        x = self.relu(x)
+
+        #Value Head
+        value = self.relu(self.batch_norm_one(self.conv_Value(x)))
+        value = value.view(-1, 1*8*8)
+        value = self.tanh(self.linear2(self.relu(self.linear1(value))))
+
+        #Policy Head
+        policy = self.relu(self.batch_norm_two(self.conv_Policy(x)))
+        policy = policy.view(-1, 2*8*8)
+        policy = self.softmax(self.linear3(policy))
 
         return policy, value

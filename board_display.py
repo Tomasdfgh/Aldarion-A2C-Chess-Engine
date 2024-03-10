@@ -46,3 +46,13 @@ def plot_loss(fig, ax, x, y1, y2, y3, y4):
     plt.legend(loc = 'best')
     plt.draw()
     plt.pause(0.1)  # Add a small delay to allow for rendering
+
+
+def plot_board(bitmap):
+    title = {0: "Rooks", 1: "Knights", 2: "Bishops", 3: "Queen", 4: "King", 5: "Pawn", 6: "Player's Turn", 7: "Player's Turn", 8: "Player's Turn"}
+    fig, axs = plt.subplots(1, 9, figsize=(18, 2))
+    for i in range(9):
+        axs[i].imshow(bitmap[i])
+        axs[i].axis('off')
+        axs[i].set_title(title[i])
+    plt.show()
