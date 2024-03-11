@@ -131,7 +131,7 @@ The policy network is trained by comparing the policy predicted by the model to 
 Aldarion is built from an actor-critic style architecture where it recieves the state as an input and have two outputs: the policy (actor), the value (critic). The policy makes the play, thus the actor, and the value judges that move, thus the critic. In order to get the exact code of the model, take a look at the model.py code script in this repository. Refer to the diagram below for a high level overview of the architecture:
 
 <p align = "center">
-  <img src = "https://github.com/Tomasdfgh/Aldarion-A2C-Chess-Engine/assets/86145397/196c4999-0dda-48b5-95c3-4deeb850b065" width = "850" alt = "promotionalChessBoard">
+  <img src = "https://github.com/Tomasdfgh/Aldarion-A2C-Chess-Engine/assets/86145397/196c4999-0dda-48b5-95c3-4deeb850b065" width = "950" alt = "promotionalChessBoard">
   <br>
   <em>Figure 10: Aldarion Model's Architecture Overview</em>
 </p>
