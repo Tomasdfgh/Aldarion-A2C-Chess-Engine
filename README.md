@@ -136,33 +136,10 @@ Aldarion is built from an actor-critic style architecture where it recieves the 
   <em>Figure 10: Aldarion Model's Architecture Overview</em>
 </p>
 
-There are 4 unique different elements in the model: the convolutional block, the residual block, the policy head, and the value head. The breakdown of their architecture are as follows:
+There are 4 unique different elements in the model: the convolutional block, the residual block, the policy head, and the value head. The breakdown of their architectures are as follows:
 
-#### Convolutional Block
-1) Convolutional Layer
-2) Batch Normalization
-3) ReLU activation layer
-
-#### Residual Block
-1) Convolutional Layer
-2) Batch Normalization
-3) ReLU activation Layer
-4) convolutional Layer
-5) Batch Normalization
-6) ReLU activation Layer
-
-#### Policy Head
-1) Convolutional Layer
-2) Batch Normalization
-3) ReLU activation Layer
-4) Fully Connected Layer
-5) Softmax activation Layer
-
-#### Value Head
-1) Convolutional Layer
-2) Batch Normalization
-3) ReLU activation
-4) Fully Connected Layer
-5) ReLU activation Layer
-6) Fully Connected Layer
-7) Tanh activation Layer
+<p align = "center">
+  <img src = "https://github.com/Tomasdfgh/Aldarion-A2C-Chess-Engine/assets/86145397/2ea4d7cb-a307-4890-a108-2cd1052c2b2a" width = "850" alt = "promotionalChessBoard">
+  <br>
+  <em>Figure 11: Model Main Features Overview</em>
+</p>
