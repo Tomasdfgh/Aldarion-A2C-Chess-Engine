@@ -70,7 +70,7 @@ Pawn promotion adds complexity to the policy because each pawn has the potential
 </p>
 
 ### How a move is selected
-Moves selected during training is through Monte Carlo Tree Search; however during competitive game play, MCTS is not utilized. As a result, moves in competitive game play is selected purely from the policy vector. Due to the fact that the policy vector considers every possible moves in the chess domain, even moves that will never be played by any pieces, a majority of the elements in the policy vector will never be utilized. As a result, in order to determine the moves, legal moves are determined from the state of the environment. From those legal moves, the probabilities are extracted from the policy vector, and the best moves are sampled based on the probability based on the legal moves. Lets take a look at the randomly generated board in order to determine how a move is selected.
+Moves selected during games of self-play is selected through Monte Carlo Tree Search; however during competitive game play, MCTS is not utilized. As a result, moves in competitive game play is selected purely from the policy vector. Due to the fact that the policy vector considers every possible moves in the chess domain, even moves that will never be played by any pieces, a majority of the elements in the policy vector will never be utilized. As a result, in order to determine the moves, legal moves are determined from the state of the environment. From those legal moves, the probabilities are extracted from the policy vector, and the best moves are sampled based on the probability based on the legal moves. Lets take a look at the randomly generated board in order to determine how a move is selected.
 
 <p align = "center">
   <img src = "https://github.com/Tomasdfgh/Aldarion-A2C-Chess-Engine/assets/86145397/76850881-99fe-48a4-8477-a83d107ae293" width = "450" alt = "promotionalChessBoard">
@@ -93,7 +93,7 @@ Which means they are moving from the 3rd square to the 30th square in the board,
 
 ## Monte Carlo Tree Search Traversal
 
-MCTS is a process used only during training that helps the model to predicts the best move to play. With Aldarion, MCTS has a small alteration from the normal MCTS traversal by instead of having the roll out step, Aldarion just uses its model to predict the value. There are 4 steps for every simulation of MCTS:
+MCTS is a process used only during training that helps the model to predicts the best move to play. With Aldarion, MCTS has a small alteration from the normal MCTS traversal by instead of having the roll out step, Aldarion just uses its model to predict the value. There are 4 steps for every simulation of MCTS. During games of self-play 300 of these 4 steps are followed for each of the move made. The results of the tree is saved into the dataset for training later on:
 
 1. Selection: Starting from the root node of the search tree, traverse down the tree according to some selection policy until reaching a leaf node. The selection policy often balances exploration and exploitation to guide the search towards promising regions of the tree.
 2. Expansion: Once a leaf node is reached, expand it by adding one or more child nodes representing possible future states or actions. These child nodes are typically generated based on legal moves or actions available from the current state. The probability of where each move is played is determined by passing the current state into the model.
