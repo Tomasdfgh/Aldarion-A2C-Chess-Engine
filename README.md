@@ -8,6 +8,10 @@
 
 Welcome to Aldarion, a chess engine trained using an adapted AlphaZero algorithm. Aldarion leverages an actor-critic model, consisting of a policy head for determining the next move and a value head for predicting the probability of winning from the current state. Additionally, it employs Monte Carlo Tree Search (MCTS) to predict the best possible moves after running 300 simulations following each move. This document provides insights into how the board is captured, the policy vector structure and its utilization for move selection, MCTS traversal, training procedures, and a comprehensive overview of the model architecture.
 
+## How to Use the model
+
+The model can be used through the function get_move in board_reader.py. Once the model has infered data, pass the policy vector and the board as fen string into get_move, and it will return the best move to be taken in string form. The move will be in the form of 'g1h2' for example where it means to move the piece currently at 'g1' to 'h2'. Best moves are selected through a sampling process where the move with the highest probability from the policy vector will be selected the most; however, it is not guaranteed that the move with the highest probability will be selected everytime. Feel free to download and change the code if you wish to change it so that the move with the highest probability is selected everytime.
+
 ## How the Model Reads the Board
 The goal of processing the chessboard is to transform the physical game board into a format that the model can comprehend. With 6 distinct types of pieces in chess, the board is converted into a tensor with a shape of 9 x 8 x 8. The initial 6 features are dedicated to piece location, while the remaining 3 denote the player's turn. This transformation essentially creates an image with 9 features, unlike the typical RGB images with 3 features, and a size of 8 by 8. Each of the first 6 features corresponds to a piece type and its respective position on the board. Player turns are indicated by a value of 1 for the active player's pieces and -1 for the opponent's. The final 3 features signify whose turn it is; if White is to play next, these layers are filled with 1's, and if it's Black's turn, they're filled with -1's.
 
@@ -66,7 +70,7 @@ Pawn promotion adds complexity to the policy because each pawn has the potential
 </p>
 
 ### How a move is selected
-Due to the fact that the policy vector considers every possible moves in the chess domain, even moves that will never be played by any pieces, a majority of the elements in the policy vector will never be utilized. As a result, Before the best move is selected from the policy vector, every legal moves from a state is determined and used to apply a mask on the policy vector. Every non legal moves in the policy vector will be zerod out. Leaving the policy vector to only have non zero elements at index where legal moves are at. As a reference lets take a look at the randomized board again. It is currently white's turn to go:
+Moves selected during training is through Monte Carlo Tree Search; however during competitive game play, MCTS is not utilized. As a result, moves in competitive game play is selected purely from the policy vector. Due to the fact that the policy vector considers every possible moves in the chess domain, even moves that will never be played by any pieces, a majority of the elements in the policy vector will never be utilized. As a result, in order to determine the moves, legal moves are determined from the state of the environment. From those legal moves, the probabilities are extracted from the policy vector, and the best moves are sampled based on the probability based on the legal moves.
 
 <p align = "center">
   <img src = "https://github.com/Tomasdfgh/Aldarion-A2C-Chess-Engine/assets/86145397/76850881-99fe-48a4-8477-a83d107ae293" width = "450" alt = "promotionalChessBoard">
