@@ -138,8 +138,9 @@ Aldarion is built from an actor-critic style architecture where it recieves the 
 
 There are 4 unique different elements in the model: the convolutional block, the residual block, the policy head, and the value head. The breakdown of their architectures are as follows:
 
+
 <p align = "center">
-  <img src = "https://github.com/Tomasdfgh/Aldarion-A2C-Chess-Engine/assets/86145397/2ea4d7cb-a307-4890-a108-2cd1052c2b2a" width = "850" alt = "promotionalChessBoard">
+  <img src = "https://github.com/Tomasdfgh/Aldarion-A2C-Chess-Engine/assets/86145397/28a577cc-f67b-4bc9-8664-3270e383639d" width = "850" alt = "promotionalChessBoard">
   <br>
   <em>Figure 11: Model Main Features Overview</em>
 </p>
