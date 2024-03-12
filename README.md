@@ -12,6 +12,10 @@ Welcome to Aldarion, a chess engine trained using an adapted AlphaZero algorithm
 
 The model can be used through the function get_move in board_reader.py. Once the model has infered data, pass the policy vector and the board as fen string into get_move, and it will return the best move to be taken in string form. The move will be in the form of 'g1h2' for example where it means to move the piece currently at 'g1' to 'h2'. Best moves are selected through a sampling process where the move with the highest probability from the policy vector will be selected the most; however, it is not guaranteed that the move with the highest probability will be selected everytime. Feel free to download and change the code if you wish to change it so that the move with the highest probability is selected everytime.
 
+## Table of Content
+
+- [How to Model Reads the Board](#How-the-Model-Reads-the-Board)
+
 ## How the Model Reads the Board
 The goal of processing the chessboard is to transform the physical game board into a format that the model can comprehend. With 6 distinct types of pieces in chess, the board is converted into a tensor with a shape of 9 x 8 x 8. The initial 6 features are dedicated to piece location, while the remaining 3 denote the player's turn. This transformation essentially creates an image with 9 features, unlike the typical RGB images with 3 features, and a size of 8 by 8. Each of the first 6 features corresponds to a piece type and its respective position on the board. Player turns are indicated by a value of 1 for the active player's pieces and -1 for the opponent's. The final 3 features signify whose turn it is; if White is to play next, these layers are filled with 1's, and if it's Black's turn, they're filled with -1's.
 
