@@ -70,7 +70,7 @@ Pawn promotion adds complexity to the policy because each pawn has the potential
 </p>
 
 ### How a move is selected
-Moves selected during training is through Monte Carlo Tree Search; however during competitive game play, MCTS is not utilized. As a result, moves in competitive game play is selected purely from the policy vector. Due to the fact that the policy vector considers every possible moves in the chess domain, even moves that will never be played by any pieces, a majority of the elements in the policy vector will never be utilized. As a result, in order to determine the moves, legal moves are determined from the state of the environment. From those legal moves, the probabilities are extracted from the policy vector, and the best moves are sampled based on the probability based on the legal moves.
+Moves selected during training is through Monte Carlo Tree Search; however during competitive game play, MCTS is not utilized. As a result, moves in competitive game play is selected purely from the policy vector. Due to the fact that the policy vector considers every possible moves in the chess domain, even moves that will never be played by any pieces, a majority of the elements in the policy vector will never be utilized. As a result, in order to determine the moves, legal moves are determined from the state of the environment. From those legal moves, the probabilities are extracted from the policy vector, and the best moves are sampled based on the probability based on the legal moves. Lets take a look at the randomly generated board in order to determine how a move is selected.
 
 <p align = "center">
   <img src = "https://github.com/Tomasdfgh/Aldarion-A2C-Chess-Engine/assets/86145397/76850881-99fe-48a4-8477-a83d107ae293" width = "450" alt = "promotionalChessBoard">
@@ -80,10 +80,12 @@ Moves selected during training is through Monte Carlo Tree Search; however durin
 
 There are 32 legal moves in this state, as a result, a mask will be applied to the rest of the elements in the policy. As a result, there will only be 32 non zero elements in the policy. To pick the next move, either sample from the non zero elements or pick the element with the highest probability. Map the index of that element to find the next move. lets say if the policy vector is as follows:
 
+There are 32 legal moves in this state, as a result, those 32 moves will be extracted from the policy vector in order to get their move probability. Lets say the policy vector is as follows
 
-$$ [0, 0, .... , 0.46, ...., 0, 0] $$
 
-Where the element with a probability of 0.46 percent has been selected and is at an index of 158 in the policy vector. Mapping this back, this means the move selected is c1f4 since they are on the 30th element of the 3rd 64 square board. In another word they are at
+$$ [0.01, 0.03, .... , 0.46, ...., 0.04, 0.07] $$
+
+The 32 moves will be legal moves will be extracted from that policy vector and sampled. The element with a probability of 0.46 percent has been selected and is at an index of 158 in the policy vector. Mapping this back, this means the move selected is c1f4 since they are on the 30th element of the 3rd 64 square board. In another word they are at
 
 $$ 2 × 64 + 30 = 158 $$
 
