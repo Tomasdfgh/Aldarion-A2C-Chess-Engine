@@ -6,7 +6,7 @@
 
 ## Introduction
 
-Welcome to Aldarion, a chess engine trained using an adapted AlphaZero algorithm. Aldarion leverages an actor-critic model, consisting of a policy head for determining the next move and a value head for predicting the probability of winning from the current state. Additionally, it employs Monte Carlo Tree Search (MCTS) to predict the best possible moves after running 300 simulations following each move. This document provides insights into how the board is captured, the policy vector structure and its utilization for move selection, MCTS traversal, training procedures, and a comprehensive overview of the model architecture.
+Welcome to Aldarion, a chess engine trained using an adapted AlphaZero algorithm. Aldarion leverages an actor-critic model, consisting of a policy head for determining the next move and a value head for predicting the probability of winning from the current state. Additionally, it employs Monte Carlo Tree Search (MCTS) to predict the best possible moves after running 300 simulations following each move. This document provides insights into how the board is captured, the policy vector structure and its utilization for move selection, MCTS traversal, training procedures, and a comprehensive overview of the model's architecture.
 
 ## How to Use the model
 
@@ -69,7 +69,7 @@ Designing a move-mapping structure for chess poses a unique challenge due to the
 </p>
 
 #### Pawn Promotional Moves
-Pawn promotion adds complexity to the policy because each pawn has the potential to promote to one of four different pieces. Therefore, the policy vector must be expanded to accommodate the possible promotions. With just 44 potential promotion moves per pawn (as illustrated in the diagram below), the policy vector requires an additional 176 elements to encompass all promotional possibilities. Consequently, normal moves are extracted from the initial 4096 elements, while promotional moves are derived from the final 176 elements, resulting in a total policy vector size of 4272 elements.
+Pawn promotion adds complexity to the policy because each pawn has the potential to promote to one of four different pieces. Therefore, the policy vector must be expanded to accommodate the possible promotions. With just 44 potential promotional moves per pawn (as illustrated in the diagram below), the policy vector requires an additional 176 elements to encompass all promotional possibilities. Consequently, normal moves are extracted from the initial 4096 elements, while promotional moves are derived from the final 176 elements, resulting in a total policy vector size of 4272 elements.
 
 <p align = "center">
   <img src = "https://github.com/Tomasdfgh/Aldarion-A2C-Chess-Engine/assets/86145397/f4769739-d6b0-43a3-9118-71d2723d543b" width = "325" alt = "promotionalChessBoard">
@@ -86,14 +86,12 @@ Moves selected during games of self-play is selected through Monte Carlo Tree Se
   <em>Figure 7: Every Legal Move of Current State</em>
 </p>
 
-There are 32 legal moves in this state, as a result, a mask will be applied to the rest of the elements in the policy. As a result, there will only be 32 non zero elements in the policy. To pick the next move, either sample from the non zero elements or pick the element with the highest probability. Map the index of that element to find the next move. lets say if the policy vector is as follows:
-
-There are 32 legal moves in this state, as a result, those 32 moves will be extracted from the policy vector in order to get their move probability. Lets say the policy vector is as follows
+There are 32 legal moves in this state, as a result, those 32 moves will be extracted from the policy vector in order to get their move probability. Lets say the policy vector is as follows:
 
 
 $$ [0.01, 0.03, .... , 0.46, ...., 0.04, 0.07] $$
 
-The 32 moves will be legal moves will be extracted from that policy vector and sampled. The element with a probability of 0.46 percent has been selected and is at an index of 158 in the policy vector. Mapping this back, this means the move selected is c1f4 since they are on the 30th element of the 3rd 64 square board. In another word they are at
+Those 32 legal will be extracted from that policy vector and sampled. The element with a probability of 0.46 percent has been selected and is at an index of 158 in the policy vector. Mapping this back, this means the move selected is c1f4 since they are on the 30th element of the 3rd 64 square board. In another word they are at
 
 $$ 2 × 64 + 30 = 158 $$
 
@@ -117,10 +115,10 @@ MCTS is a process used only during training that helps the model to predicts the
 ## Training Procedures
 
 ### Overview
-One of the greatest advantage of Aldarion's AlphaZero is the ability to autogenerate data through repeated games of selfplay. Due to the nature of self generating data, there are two main aspects to the trianining process: Self-play to generate data, model training using the data generated from self play. These two training aspects are repeated over and over again until the training process is done. AlphaZero separates these two processes into two different threads and allow these two threads to run simultaneously. Aldarion simplifies this process by running training and self-play together on one thread, and the two processes will take turn to run one after another. In order for Aldarion to generate a diverse enough dataset, there will be two games of self play for each training task.
+One of the greatest advantage of Aldarion's AlphaZero is the ability to autogenerate data through repeated games of self-play. Due to the nature of self generating data, there are two main aspects to the training process: Self-play to generate data, model training using the data generated from self play. These two training aspects are repeated over and over again until the training process is done. AlphaZero separates these two processes into two different threads and allow these two threads to run simultaneously. Aldarion simplifies this process by running training and self-play together on one thread, and the two processes will take turn to run one after another. In order for Aldarion to generate a diverse enough dataset, there will be two games of self play for each training task.
 
 ### Self-Play Data Collection
-During games of self-play, every single move made by each team is recorded for training purposes. As a result, each game can generate roughly 100 to 200 training data points. For each data point, the state of the environment is recorded as a fen string. The fen string gives information to where each piece is currently positioned in the board and the team that is making the next book. As mentioned in MCTS, the purpose of using the tree during self-play is to abuse the branch that is most likely to result in a win; however, it would also allow the model to see which moves are the "right" move to make based on the number of times each child is visited from the current state. As a result, the result of the MCTS is also recorded as the "correct move distribution" to compare to the model's move distribution. Lastly, the score of the move is recorded for the value head to be trained. The score is determined based on the outcome of the game. The winning team will recieve a score of 1 for everysingle move that they made in the game, and -1 for every single move made by the losing team. If the game is a tie then every move for every team is scored a 0. For each move made, these items are recorded:
+During games of self-play, every single move made by each team is recorded for training purposes. As a result, each game can generate roughly 100 to 200 training data points. For each data point, the state of the environment is recorded as a fen string. The fen string gives information to where each piece is currently positioned in the board and the team that is making the next move. As mentioned in MCTS, the purpose of using the tree during self-play is to abuse the branch that is most likely to result in a win; however, it would also allow the model to see which moves are the "right" move to make based on the number of times each child is visited from the current state. As a result, the result of the MCTS is also recorded as the "correct move distribution" to compare to the model's move distribution. Lastly, the score of the move is recorded for the value head to be trained. The score is determined based on the outcome of the game. The winning team will recieve a score of 1 for everysingle move that they made in the game, and -1 for every single move made by the losing team. If the game is a tie then every move for every team is scored a 0. For each move made, these items are recorded:
 
 - State of the environment as a fen string
 - MCTS move distribution
@@ -142,7 +140,7 @@ The policy network is trained by comparing the policy predicted by the model to 
 
 ## Model Architecture
 
-Aldarion is built from an actor-critic style architecture where it recieves the state as an input and have two outputs: the policy (actor), the value (critic). The policy makes the play, thus the actor, and the value judges that move, thus the critic. In order to get the exact code of the model, take a look at the model.py code script in this repository. Refer to the diagram below for a high level overview of the architecture:
+Aldarion is built from an actor-critic style architecture where it recieves the state as an input and have two outputs: the policy (actor), the value (critic). The policy makes the play, thus the actor, and the value judges that move, thus the critic. In order to get the exact breakdown of the model, take a look at the model.py code script in this repository. Refer to the diagram below for a high level overview of the architecture:
 
 <p align = "center">
   <img src = "https://github.com/Tomasdfgh/Aldarion-A2C-Chess-Engine/assets/86145397/196c4999-0dda-48b5-95c3-4deeb850b065" width = "950" alt = "promotionalChessBoard">
