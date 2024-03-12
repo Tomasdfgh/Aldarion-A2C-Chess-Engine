@@ -6,19 +6,6 @@ import torch.nn.functional as F
 import random
 import math
 
-##################################################################################################################################
-#														Board Reader			 												 #
-#																																 #
-#	This script contains all accessory functions. Important functions are board_to_array, which takes in a board in fen string	 #
-#	and whose turn it is, then convert that board into a tensor array with shape 6,8,8 which represents the state of the board.	 #
-#	best_moves and get_reward are now obsolete functions that is no longer in use. best_moves takes in a policy tensor and 		 #
-#	finds the best move to play from that tensor. The MTCS and A2C approach no longer requires for that function to work;		 #
-#	however, I will keep it around just incase it ever comes into use again. get reward takes in the board before and after a 	 #
-#	move to determine what the reward of that board is. pro_mapper is a function that returns the hashmap to find the index of 	 #
-#	a promotional move from a policy. Take a look at MTCS.py to see how pro_mapper is being used.							     #
-#																																 #
-##################################################################################################################################
-
 
 #Function to convert the board to a matrix
 def board_to_matrix(board):
@@ -97,54 +84,62 @@ def legal_move_to_coord(leg_mov):
 
 	return [(mapping[start_coord[:len(start_coord)//2]], int(start_coord[len(start_coord)//2:])),(mapping[end_coord[:len(end_coord)//2]], int(end_coord[len(end_coord)//2:]))] if len(leg_mov) == 4 else [(mapping[start_coord[:len(start_coord)//2]], int(start_coord[len(start_coord)//2:])),(mapping[end_coord[:len(end_coord)//2]], int(end_coord[len(end_coord)//2:])), leg_mov[-1]] 
 
-#Takes in a Fen String
-def get_mask(board, pro_output):
-	mask = torch.zeros(64,64)
-	board = chess.Board(board)
-	bool_map = {True: 'White', False: 'Black'}
-	pro_ = None
-	for i in board.legal_moves:
-		coords = legal_move_to_coord(str(i))
-		mask[(coords[0][0] + ((coords[0][1] - 1) * 8)) - 1][(coords[1][0] + ((coords[1][1] - 1) * 8)) -1] = 1
-	return mask
-
 def multi_indices_to_flat_index(indices, shape):
 	flat_index = torch.flatten_multi_index(indices.t(), shape)
 	return flat_index
 
-#Takes in the fen board and policy_output tensor and outputs a uci best move
-def best_moves(board, policy_output, pro_output):
-	mapping_re = {1: 'a', 2: 'b', 3: 'c', 4: 'd', 5:'e', 6:'f', 7:'g', 0:'h'}
-	policy_output = policy_output.reshape(64,-1)
-	mask = get_mask(board, pro_output)
-	indices = torch.nonzero(mask != 0, as_tuple=False)
-	
-	policy_output += 1e-10
-	policy_output *= mask
+#Function to get move for competitive games
+def get_move(board, policy):
 
-	action_space_prob = []
-	for i in indices:
-		action_space_prob.append(policy_output[i[0], i[1]].item())
-
-	shape_1 = policy_output.shape[1]
-	policy_output = policy_output.view(-1)
-	pro_move = None
-	max_coordinates = torch.multinomial(policy_output, 1).item()
-	move_prob = policy_output[max_coordinates]
-	max_coordinates_2d = divmod(max_coordinates, shape_1)
-	max_coordinates_2d = (max_coordinates_2d[0] + 1, max_coordinates_2d[1] + 1)
-	move = str(mapping_re[max_coordinates_2d[0] % 8]) + str(math.ceil(max_coordinates_2d[0]/8)) + str(mapping_re[max_coordinates_2d[1] % 8]) + str(math.ceil(max_coordinates_2d[1]/8))
-	
-	legal = []
+	# Setting up the Board
 	board = chess.Board(board)
-	for i in board.legal_moves:
-		legal.append(str(i))
+	team = board.turn
 
-	if ((move + 'q') in legal) or ((move + 'n') in legal) or ((move + 'b') in legal) or ((move + 'r') in legal):
-		pro_mapping = {0: 'q', 1: 'r', 2: 'b', 3: 'n'}
-		pro_move = torch.multinomial(pro_output, 1).item()
-		move += pro_mapping[pro_move]
-	return move, max_coordinates, pro_move, action_space_prob
+	#Setting up Policy
+	pro_policy = policy[0][4096:]
+	policy = policy[0][:4096].reshape(64,-1)
+	pro_mapper_ = pro_mapper()
+
+	move_mapper = {}
+	move_sampler = []
+	for i in board.legal_moves:
+		coords = legal_move_to_coord(str(i))
+		
+		#A normal move (not a promotion move)
+		if len(coords) == 2:
+			move_mapper[str(i)] = policy[(coords[0][0] + ((coords[0][1] - 1) * 8)) - 1][(coords[1][0] + ((coords[1][1] - 1) * 8)) -1].item()
+		
+		#Pawn Promotion move. Cannot use the first 4096 elements of the tensor
+		if len(coords) == 3:
+			move_mapper[str(i)] = pro_policy[pro_mapper_[(coords[0], coords[1], coords[2])]].item()
+
+	#Sample from a hashmap
+	move_mapper = normalize_hash(move_mapper)
+
+	# sampled_key = max(move_mapper, key=move_mapper.get)
+	keys = list(move_mapper.keys())
+	probabilities = list(move_mapper.values())
+	probabilities_ = [x + 1e-5 for x in probabilities]
+
+	# Sample from the multinomial distribution
+	sampled_key = random.choices(keys, weights=probabilities_, k=1)[0]
+	return sampled_key
+
+def normalize_hash(inp_hash):
+	sum_ = 0
+	for i in inp_hash:
+		sum_ += inp_hash[i]
+	for i in inp_hash:
+		inp_hash[i] /= sum_
+	return inp_hash
+
+def normalize_list(l):
+	sum_ = 0
+	for i in l:
+		sum_ += i
+	for i in range(len(l)):
+		l[i] /= sum_
+	return l
 
 def generate_random_board():
     # Create a new chess board
