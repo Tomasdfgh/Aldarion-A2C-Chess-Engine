@@ -199,6 +199,8 @@ def training(model, trainingSplit, validationSplit, batch_size, sheet, optimizer
             testing_loss += test_loss.detach()
 
     print("Testing Loss: " + str(testing_loss.item()))
-    torch.save(model.state_dict(),'Aldarion_Alpha_Zero.pth')
     overall_loss.append([None, None, testing_loss.item()])
+
+    #Saving Model
+    torch.save(model.state_dict(),'Aldarion_Alpha_Zero.pth')
     return overall_loss

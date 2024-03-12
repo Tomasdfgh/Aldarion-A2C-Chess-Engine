@@ -2,14 +2,6 @@ import chess
 import board_reader as br
 import board_display as bd
 
-##################################################################################################################################
-#													Monte Carlo Tree search 													 #
-#																																 #
-#	This script runs Monte Carlo Tree search. It takes in a chess board (fen string), the neural network model, the temperature, #
-#	and the number of sims to run per move. Main function to call is run_game(). The rest of the functions are accessories that  #
-#	help set up the tree, expand the tree, find the UCB score, and run the simulations.											 #
-#																																 #
-##################################################################################################################################
 
 class MTCSNode:
 	def __init__(self, team, state, action, n, w, q, p):
@@ -69,7 +61,7 @@ def expand(node, policy):
 		if len(coords) == 3:
 			move_mapper[str(i)] = pro_policy[pro_mapper[(coords[0], coords[1], coords[2])]].item()
 
-	move_mapper = normalize_list(move_mapper)
+	move_mapper = br.normalize_hash(move_mapper)
 
 	for i in chess.Board(node.state).legal_moves:
 		board_temp = chess.Board(node.state)
@@ -78,20 +70,12 @@ def expand(node, policy):
 		child_node.UCB = UCB(node, child_node)
 		node.add_child(child_node)
 
-def normalize_list(inp_hash):
-	sum_ = 0
-	for i in inp_hash:
-		sum_ += inp_hash[i]
-	for i in inp_hash:
-		inp_hash[i] /= sum_
-	return inp_hash
-
 
 def run_simulation(root, sim, model):
 
 	#Expand the root
 	if len(root.children) == 0:
-		policy, value = model(br.board_to_array(chess.Board(root.state).fen(), root.team))
+		policy, value = model(br.board_to_array(chess.Board(root.state).fen(), root.team).unsqueeze(0))
 		expand(root, policy)
 
 
@@ -120,7 +104,7 @@ def run_simulation(root, sim, model):
 				queue.append(node)
 
 		#Expand
-		policy, value = model(br.board_to_array(chess.Board(search_path[-1].state).fen(), search_path[-1].team))
+		policy, value = model(br.board_to_array(chess.Board(search_path[-1].state).fen(), search_path[-1].team).unsqueeze(0))
 		expand(search_path[-1], policy)
 
 		#The value above is the value of the current state for the chosen team. We need to backprop that value back up the tree
