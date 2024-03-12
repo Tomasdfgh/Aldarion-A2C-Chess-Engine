@@ -15,7 +15,7 @@ The model can be used through the function get_move in board_reader.py. Once the
 ## Table of Content
 
 - [How to Model Reads the Board](#How-the-Model-Reads-the-Board)
-- [The Policy: How to get a move from a policy](#The-Policy)
+- [The Policy: How to get a move from a policy](#The-Policy-How-to-get-a-move-from-a-policy)
 - [Monte Carlo Tree Search Traversal](#Monte-Carlo-Tree-Search-Traversal)
 - [Training Procedures](#Training-Procedures)
 - [Model Architecture](#Model-Architecture)
