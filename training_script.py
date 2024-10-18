@@ -42,7 +42,7 @@ def get_model_weights(model):
     return weights
 
 
-def training(model, trainingSplit, validationSplit, batch_size, sheet, optimizer, epoch):
+def training(model, trainingSplit, validationSplit, batch_size, sheet, optimizer, epoch, device):
     print("Number of rows in excel: " + str(sheet.max_row))
     pro_mapper = br.pro_mapper()
     dataset = []
@@ -67,7 +67,7 @@ def training(model, trainingSplit, validationSplit, batch_size, sheet, optimizer
         for i, (state, mtcs_dict, value_label, fen) in enumerate(train_loader):
             
             #----Prepping the Data----#
-            policy, value_pred = model(state)
+            policy, value_pred = model(state.to(device))
             value_pred = value_pred.reshape(-1)
             pro_policy = policy[:, 4096:]
             policy = policy[:, :4096].reshape(policy.shape[0], 64, 64)
@@ -118,7 +118,7 @@ def training(model, trainingSplit, validationSplit, batch_size, sheet, optimizer
         for i, (state, mtcs_dict, value_label, fen) in enumerate(validation_loader):
 
             #----Prepping the Data----#
-            policy, value_pred = model(state)
+            policy, value_pred = model(state.to(device))
             value_pred = value_pred.reshape(-1)
             pro_policy = policy[:, 4096:]
             policy =  policy[:, : 4096].reshape(policy.shape[0], 64,64)

@@ -11,8 +11,13 @@ import matplotlib.pyplot as plt
 
 if __name__ == "__main__":
 
+
+    # Check if GPU is available
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}")
+
     #Model Setup
-    model = md.ChessNet().double()
+    model = md.ChessNet().double().to(device)
     optimizer = optim.AdamW(model.parameters(), lr = 1e-3)
 
     for i in range(10000):
@@ -28,7 +33,7 @@ if __name__ == "__main__":
         sheet_training = workbook_training.active
 
         #Load the model again
-        model.load_state_dict(torch.load('Aldarion_Alpha_Zero.pth'))
+        model.load_state_dict(torch.load('Aldarion_Alpha_Zero.pth', weights_only=True))
 
         #---------Generating Data Through Self-Play---------#
 
@@ -39,7 +44,7 @@ if __name__ == "__main__":
         for _ in range(2):
 
             fig, ax = bd.get_fig_ax()
-            path_taken = mt.run_game(model, temperature, num_sim, fig, ax)
+            path_taken = mt.run_game(model, temperature, num_sim, fig, ax, device)
 
             for z in path_taken:
                 sheet.append(z)
@@ -56,7 +61,7 @@ if __name__ == "__main__":
         epoch = 20
 
         #Training Begins
-        loss_ = ts.training(model, training_split ,validation_split, batch_size, sheet, optimizer, epoch)
+        loss_ = ts.training(model, training_split ,validation_split, batch_size, sheet, optimizer, epoch, device)
 
         #Save the training result. Order of saving: Training Loss, Validation Loss, Testing Loss
         for l in loss_:

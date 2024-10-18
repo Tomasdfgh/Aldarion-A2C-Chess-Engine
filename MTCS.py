@@ -71,13 +71,12 @@ def expand(node, policy):
 		node.add_child(child_node)
 
 
-def run_simulation(root, sim, model):
+def run_simulation(root, sim, model, device):
 
 	#Expand the root
 	if len(root.children) == 0:
-		policy, value = model(br.board_to_array(chess.Board(root.state).fen(), root.team).unsqueeze(0))
+		policy, value = model(br.board_to_array(chess.Board(root.state).fen(), root.team).unsqueeze(0).to(device))
 		expand(root, policy)
-
 
 	#Begin Simulation
 	for z in range(sim):
@@ -104,7 +103,7 @@ def run_simulation(root, sim, model):
 				queue.append(node)
 
 		#Expand
-		policy, value = model(br.board_to_array(chess.Board(search_path[-1].state).fen(), search_path[-1].team).unsqueeze(0))
+		policy, value = model(br.board_to_array(chess.Board(search_path[-1].state).fen(), search_path[-1].team).unsqueeze(0).to(device))
 		expand(search_path[-1], policy)
 
 		#The value above is the value of the current state for the chosen team. We need to backprop that value back up the tree
@@ -120,7 +119,7 @@ def run_simulation(root, sim, model):
 				n.UCB = UCB(search_path[ind-1], n)
 
 
-def run_game(model, temperature, num_sim, fig, ax):
+def run_game(model, temperature, num_sim, fig, ax, device):
 	
 	# Create nodes
 	root = MTCSNode(True, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", None, 0, 0, None, None)
@@ -138,7 +137,7 @@ def run_game(model, temperature, num_sim, fig, ax):
 		move_mapper_ = {}
 		
 		#Running Simulations
-		run_simulation(node, num_sim, model)
+		run_simulation(node, num_sim, model, device)
 
 		#Capturing the Probabilities from MTCS to put in training data
 		for i in node.children:
