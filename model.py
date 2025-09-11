@@ -5,7 +5,7 @@ class ChessNet(nn.Module):
         super(ChessNet, self).__init__()
 
         #First Convolutional Layer
-        self.conv1 = nn.Conv2d(9, 256, kernel_size = 3, padding = 1)
+        self.conv1 = nn.Conv2d(119, 256, kernel_size = 3, padding = 1)
 
         #First Residual Layer
         self.conv2 = nn.Conv2d(256,256, kernel_size = 3, padding = 1)
@@ -54,9 +54,7 @@ class ChessNet(nn.Module):
 
         #Policy Head
         self.conv_Policy = nn.Conv2d(256, 2, kernel_size = 1)
-        self.linear3 = nn.Linear(2 * 8 * 8, 4272)
-
-
+        self.linear3 = nn.Linear(2 * 8 * 8, 4672)
 
         # Activation functions, Batch Normalization, and identity
         self.relu = nn.ReLU()

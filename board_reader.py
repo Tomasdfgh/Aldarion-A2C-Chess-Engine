@@ -7,73 +7,146 @@ import random
 import math
 
 
-#Function to convert the board to a matrix
-def board_to_matrix(board):
-    matrix = np.zeros((8, 8), dtype=np.dtype('U2'))
+#This function converts the current board into 14 current position planes (12 pieces + 2 repetition counters).
+def board_to_array(board, turn, game_history=None):
+	board_obj = chess.Board(board)
+	
+	array = np.zeros((14, 8, 8))
+	piece_types = [chess.PAWN, chess.ROOK, chess.KNIGHT, chess.BISHOP, chess.QUEEN, chess.KING]
+	
+	# Fill piece planes (planes 0-11)
+	# AlphaZero format: All white pieces (0-5), then all black pieces (6-11)
+	for piece_idx, piece_type in enumerate(piece_types):
 
-    for rank in range(8):
-        for file in range(8):
-            square = chess.square(file, rank)
-            piece = board.piece_at(square)
-
-            if piece is not None:
-                # Adjust indexing for NumPy (rank and file are 0-based in NumPy)
-                matrix[7 - rank, file] = piece.symbol()
-            else:
-                matrix[7 - rank, file] = '.'
-
-    return matrix
-
-
-#Function to find the coordinates of any piece
-def find_piece_coordinates(board, piece):
-    coordinates = []
-
-    for i in range(len(board)):
-        for j in range(len(board[i])):
-            if board[i][j] == piece:
-                coordinates.append((i, j))
-
-    return coordinates
-
-#Function to assign the coordinate into the array
-def set_values(matrix, coordinates, value):
-    for coord in coordinates:
-        x, y = coord
-        matrix[x][y] = value
-    return matrix
-
-#This function converts the board into a 6,8,8 array
-def board_to_array(board, turn):
-	#set up all the mappings
-	piece_mapping = {'R': 'r', 'N': 'n', 'B': 'b', 'Q': 'q', 'K': 'k', 'P':'p'}
-	turn_mapping_you = {True: 1, False: -1}
-	turn_mapping_op = {True: -1, False: 1}
-
-	board = chess.Board(board)
-
-	#First convert the board into a matrix
-	board = board_to_matrix(board)
-
-	array = []
-
-	for i in piece_mapping:
-		matrix = np.zeros((8, 8))
-		your_cord = find_piece_coordinates(board, i)
-		op_cord = find_piece_coordinates(board, piece_mapping[i])
-		matrix = set_values(matrix, your_cord, turn_mapping_you[turn])
-		matrix = set_values(matrix, op_cord, turn_mapping_op[turn])
-		array.append(matrix)
-
-	if turn:
-		team_matrix = np.ones((8,8))
+		white_squares = board_obj.pieces(piece_type, chess.WHITE)
+		for square in white_squares:
+			row = 7 - (square // 8)  # Convert to matrix coordinates
+			col = square % 8
+			array[piece_idx][row][col] = 1
+		
+		black_squares = board_obj.pieces(piece_type, chess.BLACK)
+		for square in black_squares:
+			row = 7 - (square // 8)  # Convert to matrix coordinates
+			col = square % 8
+			array[piece_idx + 6][row][col] = 1
+	
+	# Repetition Counters (2 planes: 12-13)
+	if game_history:
+		# Repetition Counter 1 (plane 12) - Normalized repetition count for draw detection
+		# Include turn, castling rights, and en passant for accurate repetition rules
+		position_key = ' '.join(board_obj.fen().split()[:4])  # board + turn + castling + en passant
+		repetition_count = sum(1 for hist_pos in game_history 
+		                      if ' '.join(hist_pos.fen().split()[:4]) == position_key)
+		array[12] = np.full((8, 8), min(repetition_count, 3) / 3.0)  # Normalize to 0-1, cap at 3
+		
+		# Repetition Counter 2 (plane 13) - Halfmove clock for 50-move rule
+		halfmove_clock = board_obj.halfmove_clock
+		array[13] = np.full((8, 8), min(halfmove_clock, 50) / 50.0)  # Normalize and cap at 50
 	else:
-		team_matrix = np.full((8,8),-1)
+		# Default values when no history available
+		array[12] = np.full((8, 8), 1/3.0)  # First occurrence (normalized)
+		array[13] = np.full((8, 8), board_obj.halfmove_clock / 50.0)  # Real halfmove clock
+	
+	return torch.tensor(array)
 
-	for i in range(3):
-		array.append(team_matrix)
+def board_to_full_alphazero_input(current_board, game_history=None):
+	"""
+	Creates the full AlphaZero input: 119 planes total
+	- 112 planes: 8 time steps × 14 planes each (12 pieces + 2 repetition counters)
+	- 7 planes: Current game state information
+	
+	Args:
+		current_board: chess.Board object OR FEN string for current position
+		game_history: List of chess.Board objects representing game history
+	
+	Returns:
+		torch.Tensor of shape (119, 8, 8)
+	"""
+	
+	# Convert current_board to chess.Board object if it's a string
+	if isinstance(current_board, str):
+		current_board = chess.Board(current_board)
+	
+	if game_history is None:
+		game_history = []
+	
+	# Ensure we have at least the current board in history
+	full_history = game_history + [current_board]
+	
+	# Get exactly 8 positions, padding with zeros if needed
+	last_8_positions = []
+	for i in range(8):
+		history_index = len(full_history) - 8 + i
+		if history_index >= 0:
+			last_8_positions.append(full_history[history_index])
+		else:
+			last_8_positions.append(None)  # Will be zero-padded
+	
+	# Create arrays for each time step (112 planes total)
+	position_arrays = []
+	for i, board_pos in enumerate(last_8_positions):
+		if board_pos is not None:
+			# Real position with proper history slice
+			relevant_history = full_history[:len(full_history)-8+i+1]
+			position_array = board_to_array(board_pos.fen(), board_pos.turn, relevant_history)
+		else:
+			# Zero padding for missing history
+			position_array = torch.zeros((14, 8, 8))
+		position_arrays.append(position_array)
+	
+	# Concatenate all position arrays (112 planes)
+	position_planes = torch.cat(position_arrays, dim=0)
+	
+	# Get game state information for current position (7 planes)
+	game_state_planes = board_to_game_state_array(current_board.fen(), current_board.turn)
+	
+	# Combine everything (112 + 7 = 119 planes)
+	full_input = torch.cat([position_planes, game_state_planes], dim=0)
+	
+	return full_input
 
-	return torch.tensor(np.array(array))
+def board_to_game_state_array(board, turn):
+	board_obj = chess.Board(board)
+	
+	# Create 7 planes for game state information
+	array = np.zeros((7, 8, 8))
+	
+	# SECTION 2: GAME STATE INFORMATION (7 planes)
+	
+	# Castling Rights (4 planes: 0-3)
+	# White King-side Castling (plane 0)
+	if board_obj.has_kingside_castling_rights(chess.WHITE):
+		array[0] = np.ones((8, 8))
+	
+	# White Queen-side Castling (plane 1)
+	if board_obj.has_queenside_castling_rights(chess.WHITE):
+		array[1] = np.ones((8, 8))
+	
+	# Black King-side Castling (plane 2)
+	if board_obj.has_kingside_castling_rights(chess.BLACK):
+		array[2] = np.ones((8, 8))
+	
+	# Black Queen-side Castling (plane 3)
+	if board_obj.has_queenside_castling_rights(chess.BLACK):
+		array[3] = np.ones((8, 8))
+	
+	# En Passant (1 plane: 4)
+	if board_obj.ep_square is not None:
+		ep_row = 7 - (board_obj.ep_square // 8)
+		ep_col = board_obj.ep_square % 8
+		array[4][ep_row][ep_col] = 1
+	
+	# Current Player Color (plane 5)
+	if board_obj.turn == chess.WHITE:
+		array[5] = np.ones((8, 8))
+	else:
+		array[5] = np.zeros((8, 8))
+	
+	# Total Move Count (plane 6) - normalized
+	move_count = board_obj.fullmove_number / 100.0
+	array[6] = np.full((8, 8), move_count)
+	
+	return torch.tensor(array)
 
 
 def legal_move_to_coord(leg_mov):
@@ -153,47 +226,6 @@ def generate_random_board():
         random_move = legal_moves.pop()
         board.push(random_move)
     return board
-
-#Reward rules are as follows:
-#	- Captured pieces get the following reward:
-#		- pawn: 1
-#		- knight or bishop: 3
-#		- Rook: 5
-#		- Queen: 9
-#	- Win a game: 100
-#	- Lose a game: -100
-
-def get_reward(board_before, board_after):
-	#Both boards need to be fen and team is a BOOL: True for White and False for Black
-	piece_count_before = {'P': 0, 'N': 0, 'B': 0, 'R': 0, 'Q': 0, 'K': 0, 'p': 0, 'n': 0, 'b': 0, 'r': 0, 'q': 0, 'k': 0}
-	piece_count_after = {'P': 0, 'N': 0, 'B': 0, 'R': 0, 'Q': 0, 'K': 0, 'p': 0, 'n': 0, 'b': 0, 'r': 0, 'q': 0, 'k': 0}
-	piece_captured = {'P': 0, 'N': 0, 'B': 0, 'R': 0, 'Q': 0, 'K': 0, 'p': 0, 'n': 0, 'b': 0, 'r': 0, 'q': 0, 'k': 0}
-	score_mapping = {'P': 1, 'N': 3, 'B': 3, 'R': 5, 'Q': 9, 'K': 100, 'p': 1, 'n': 3, 'b': 3, 'r': 5, 'q': 9, 'k': 100}
-
-	reward = 0
-	board_before = chess.Board(board_before)
-	board_after = chess.Board(board_after)
-	board_before = board_to_matrix(board_before)
-	board_after = board_to_matrix(board_after)
-	for row in range(len(board_before)):
-		for square in range(len(board_before[row])):
-			if board_before[row][square] in piece_count_before:
-				piece_count_before[board_before[row][square]] += 1
-			if board_after[row][square] in piece_count_after:
-				piece_count_after[board_after[row][square]] += 1
-
-	for i in piece_count_before:
-		piece_captured[i] = piece_count_before[i] - piece_count_after[i]
-		if piece_captured[i] < 0:
-			piece_captured[i] += 1
-			if i == 'Q' or i == 'R' or i == 'B' or i == 'N':
-				piece_captured['P'] -= 1
-			if i == 'q' or i == 'r' or i == 'b' or i == 'n':
-				piece_captured['p'] -= 1
-	for i in piece_captured:
-		reward += piece_captured[i] * score_mapping[i]
-	return reward
-
 
 def pro_mapper():
 	pro_mapper = {	((1, 2), (1, 1), 'q'): 0, ((1, 2), (1, 1), 'r'): 1, ((1, 2), (1, 1), 'b'): 2, ((1, 2), (1, 1), 'n'): 3, 
@@ -331,9 +363,3 @@ def get_all_moves():
         all_moves[i] = 0
 
     return all_moves
-
-def array_to_tensor(array):
-	return torch.tensor(array)
-
-def prob_sampler(array, num_sam):
-	return torch.multinomial(array, num_sam, replacement=True)

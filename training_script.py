@@ -1,6 +1,5 @@
 import model as md
 import board_reader as br
-import board_display as bd
 import MTCS as mt
 import chess
 import matplotlib.pyplot as plt

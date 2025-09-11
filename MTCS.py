@@ -1,6 +1,5 @@
 import chess
 import board_reader as br
-import board_display as bd
 
 
 class MTCSNode:
@@ -119,7 +118,7 @@ def run_simulation(root, sim, model, device):
 				n.UCB = UCB(search_path[ind-1], n)
 
 
-def run_game(model, temperature, num_sim, fig, ax, device):
+def run_game(model, temperature, num_sim, device):
 	
 	# Create nodes
 	root = MTCSNode(True, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", None, 0, 0, None, None)
@@ -128,7 +127,6 @@ def run_game(model, temperature, num_sim, fig, ax, device):
 	path_taken = []
 
 	board = chess.Board(node.state)
-	bd.render_board(board, fig, ax)
 
 	game_result = {True: 0, False: 0}
 
@@ -168,8 +166,6 @@ def run_game(model, temperature, num_sim, fig, ax, device):
 				node.children.remove(i)
 		node = best_node
 
-		bd.render_board(board, fig, ax, move = str(node.action))
-
 		if chess.Board(node.state).is_game_over():
 			if chess.Board(node.state).result() == "1-0":
 				game_result[True] = 1
@@ -183,3 +179,37 @@ def run_game(model, temperature, num_sim, fig, ax, device):
 			break
 
 	return path_taken
+
+
+
+def test_board(model, device):
+
+	import torch
+
+
+	root = MTCSNode(True, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", None, 0, 0, None, None)
+	root.UCB = False
+	node = root
+	path_taken = []
+
+	board = chess.Board(node.state)
+
+	print(board)
+
+	current_tensor = br.board_to_array(chess.Board(root.state).fen(), root.team).unsqueeze(0)
+	game_state = br.board_to_full_alphazero_input(chess.Board(root.state).fen())
+
+	print(type(game_state))
+	print(f"Game state shape: {game_state.shape}")
+	print(f"Game state dimensions: {game_state.dim()}")
+
+	# Pass game_state through the model - add batch dimension
+	game_state = game_state.unsqueeze(0).float().to(device)  # Add batch dimension
+	print(f"Game state shape after unsqueeze: {game_state.shape}")
+	with torch.no_grad():
+		policy, value = model(game_state)
+
+	print(f"Policy shape: {policy.shape}")
+	print(f"Value shape: {value.shape}")
+	print(f"Value: {value.item()}")
+	print(f"Policy sum: {policy.sum().item()}")  # Should be close to 1 due to softmax
