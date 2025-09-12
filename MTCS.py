@@ -185,31 +185,24 @@ def run_game(model, temperature, num_sim, device):
 def test_board(model, device):
 
 	import torch
-
-
-	root = MTCSNode(True, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", None, 0, 0, None, None)
-	root.UCB = False
-	node = root
-	path_taken = []
-
-	board = chess.Board(node.state)
-
+	
+	# Test with actual legal moves from starting position
+	print(f"\nTesting all legal moves from starting position:")
+	board = chess.Board()
 	print(board)
 
-	current_tensor = br.board_to_array(chess.Board(root.state).fen(), root.team).unsqueeze(0)
-	game_state = br.board_to_full_alphazero_input(chess.Board(root.state).fen())
+	input_ = br.board_to_full_alphazero_input(board)
 
-	print(type(game_state))
-	print(f"Game state shape: {game_state.shape}")
-	print(f"Game state dimensions: {game_state.dim()}")
-
-	# Pass game_state through the model - add batch dimension
-	game_state = game_state.unsqueeze(0).float().to(device)  # Add batch dimension
-	print(f"Game state shape after unsqueeze: {game_state.shape}")
+	# Pass input_ through the model - add batch dimension
+	input_ = input_.unsqueeze(0).float().to(device)  # Add batch dimension
 	with torch.no_grad():
-		policy, value = model(game_state)
+		policy, value = model(input_)
 
-	print(f"Policy shape: {policy.shape}")
-	print(f"Value shape: {value.shape}")
-	print(f"Value: {value.item()}")
-	print(f"Policy sum: {policy.sum().item()}")  # Should be close to 1 due to softmax
+	policy_distribution = br.board_to_legal_policy_hash(board, policy)
+
+
+	'''
+	alright, look at the code file, I want you to create a simple for loop that plays the game. there
+  is no need to use MTCS. just use the policy distribution to deterministically pick the next move.
+  then play the move and display the board. use the same model to play against itself
+  '''

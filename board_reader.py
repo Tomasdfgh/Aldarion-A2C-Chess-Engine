@@ -148,6 +148,25 @@ def board_to_game_state_array(board, turn):
 	
 	return torch.tensor(array)
 
+def board_to_legal_policy_hash(board, policy):
+	
+	policy = policy.reshape(8,8,73)
+	legal_moves = list(board.legal_moves)
+	policy_distribution = {}
+	
+	for move in legal_moves:
+		try:
+			row, col, plane = uci_to_policy_index(str(move))
+			policy_distribution[str(move)] = policy[row, col, plane].item()
+		except ValueError as e:
+			print(f"   {move} -> ERROR: {e}")
+	
+	# Normalize the distribution
+	policy_distribution = normalize_hash(policy_distribution)
+	
+	return policy_distribution
+
+
 
 def legal_move_to_coord(leg_mov):
 	mapping = {'a': 1, 'b': 2, 'c': 3, 'd' : 4, 'e': 5, 'f': 6, 'g': 7, 'h': 8}
@@ -157,62 +176,23 @@ def legal_move_to_coord(leg_mov):
 
 	return [(mapping[start_coord[:len(start_coord)//2]], int(start_coord[len(start_coord)//2:])),(mapping[end_coord[:len(end_coord)//2]], int(end_coord[len(end_coord)//2:]))] if len(leg_mov) == 4 else [(mapping[start_coord[:len(start_coord)//2]], int(start_coord[len(start_coord)//2:])),(mapping[end_coord[:len(end_coord)//2]], int(end_coord[len(end_coord)//2:])), leg_mov[-1]] 
 
-def multi_indices_to_flat_index(indices, shape):
-	flat_index = torch.flatten_multi_index(indices.t(), shape)
-	return flat_index
-
-#Function to get move for competitive games
-def get_move(board, policy):
-
-	# Setting up the Board
-	board = chess.Board(board)
-	team = board.turn
-
-	#Setting up Policy
-	pro_policy = policy[0][4096:]
-	policy = policy[0][:4096].reshape(64,-1)
-	pro_mapper_ = pro_mapper()
-
-	move_mapper = {}
-	move_sampler = []
-	for i in board.legal_moves:
-		coords = legal_move_to_coord(str(i))
-		
-		#A normal move (not a promotion move)
-		if len(coords) == 2:
-			move_mapper[str(i)] = policy[(coords[0][0] + ((coords[0][1] - 1) * 8)) - 1][(coords[1][0] + ((coords[1][1] - 1) * 8)) -1].item()
-		
-		#Pawn Promotion move. Cannot use the first 4096 elements of the tensor
-		if len(coords) == 3:
-			move_mapper[str(i)] = pro_policy[pro_mapper_[(coords[0], coords[1], coords[2])]].item()
-
-	#Sample from a hashmap
-	move_mapper = normalize_hash(move_mapper)
-
-	# sampled_key = max(move_mapper, key=move_mapper.get)
-	keys = list(move_mapper.keys())
-	probabilities = list(move_mapper.values())
-	probabilities_ = [x + 1e-5 for x in probabilities]
-
-	# Sample from the multinomial distribution
-	sampled_key = random.choices(keys, weights=probabilities_, k=1)[0]
-	return sampled_key
 
 def normalize_hash(inp_hash):
 	sum_ = 0
 	for i in inp_hash:
 		sum_ += inp_hash[i]
-	for i in inp_hash:
-		inp_hash[i] /= sum_
+	
+	# Handle edge case where sum is zero
+	if sum_ == 0:
+		# Return uniform distribution
+		uniform_prob = 1.0 / len(inp_hash) if len(inp_hash) > 0 else 0
+		for i in inp_hash:
+			inp_hash[i] = uniform_prob
+	else:
+		for i in inp_hash:
+			inp_hash[i] /= sum_
+	
 	return inp_hash
-
-def normalize_list(l):
-	sum_ = 0
-	for i in l:
-		sum_ += i
-	for i in range(len(l)):
-		l[i] /= sum_
-	return l
 
 def generate_random_board():
     # Create a new chess board
@@ -333,6 +313,127 @@ def generate_chess_moves():
                     moves.append(move)
 
     return moves
+
+def uci_to_policy_index(uci_move, board_state=None):
+	"""
+	Convert a UCI move string to AlphaZero policy tensor indices (row, col, plane).
+	
+	Args:
+		uci_move: UCI move string (e.g., "e2e4", "e1g1", "e7e8q")
+		board_state: Optional chess.Board object for move validation
+		
+	Returns:
+		tuple: (row, col, plane) indices for the 8x8x73 policy tensor
+	"""
+	
+	# Direction mappings (clockwise from North)
+	# Note: In our coordinate system, row 0 = rank 8, so North = negative row direction
+	DIRECTIONS = {
+		(-1, 0): 0,  # North (up the board, decreasing row)
+		(-1, 1): 1,  # Northeast  
+		(0, 1): 2,   # East
+		(1, 1): 3,   # Southeast
+		(1, 0): 4,   # South (down the board, increasing row)
+		(1, -1): 5,  # Southwest
+		(0, -1): 6,  # West
+		(-1, -1): 7  # Northwest
+	}
+	
+	# Knight move patterns (original mapping)
+	KNIGHT_MOVES = [
+		(2, 1),   # 0
+		(1, 2),   # 1
+		(-1, 2),  # 2
+		(-2, 1),  # 3
+		(-2, -1), # 4
+		(-1, -2), # 5
+		(1, -2),  # 6
+		(2, -1)   # 7
+	]
+	
+	# Parse UCI move
+	from_square = uci_move[:2]
+	to_square = uci_move[2:4]
+	promotion = uci_move[4:] if len(uci_move) > 4 else None
+	
+	# Convert squares to coordinates
+	def square_to_coord(square):
+		file = ord(square[0]) - ord('a')  # a=0, b=1, ..., h=7
+		rank = int(square[1]) - 1         # 1=0, 2=1, ..., 8=7
+		row = 7 - rank                    # Convert to matrix coords (rank 8 = row 0)
+		col = file
+		return row, col
+	
+	from_row, from_col = square_to_coord(from_square)
+	to_row, to_col = square_to_coord(to_square)
+	
+	# Calculate movement vector
+	d_row = to_row - from_row
+	d_col = to_col - from_col
+	
+	# Check if it's a knight move
+	if (d_row, d_col) in KNIGHT_MOVES:
+		knight_index = KNIGHT_MOVES.index((d_row, d_col))
+		plane = 56 + knight_index
+		return from_row, from_col, plane
+	
+	# Check if it's an underpromotion
+	if promotion and promotion.lower() in ['n', 'b', 'r']:
+		piece_map = {'n': 0, 'b': 1, 'r': 2}
+		piece_index = piece_map[promotion.lower()]
+		
+		# Determine direction for underpromotion
+		if d_col == 0:
+			direction_index = 0  # Forward
+		elif d_col == -1:
+			direction_index = 1  # Diagonal-left
+		elif d_col == 1:
+			direction_index = 2  # Diagonal-right
+		else:
+			raise ValueError(f"Invalid underpromotion move: {uci_move}")
+		
+		plane = 64 + direction_index * 3 + piece_index
+		return from_row, from_col, plane
+	
+	# Must be a queen-line move
+	# Normalize direction vector
+	def gcd(a, b):
+		while b:
+			a, b = b, a % b
+		return abs(a)
+	
+	if d_row == 0 and d_col == 0:
+		raise ValueError(f"Invalid move (no movement): {uci_move}")
+	
+	# Find the direction and distance
+	if d_row == 0:
+		# Horizontal move
+		direction = (0, 1) if d_col > 0 else (0, -1)
+		distance = abs(d_col)
+	elif d_col == 0:
+		# Vertical move  
+		direction = (-1, 0) if d_row < 0 else (1, 0)  # Fixed: d_row < 0 means North (up)
+		distance = abs(d_row)
+	else:
+		# Diagonal move
+		if abs(d_row) != abs(d_col):
+			raise ValueError(f"Invalid diagonal move: {uci_move}")
+		# Normalize direction vector for diagonals
+		direction = (1 if d_row > 0 else -1, 1 if d_col > 0 else -1)
+		distance = abs(d_row)  # or abs(d_col), they're equal for diagonals
+	
+	if distance > 7:
+		raise ValueError(f"Move distance too large: {uci_move}")
+	
+	# Map direction to index
+	if direction not in DIRECTIONS:
+		raise ValueError(f"Invalid direction: {direction}")
+	
+	direction_index = DIRECTIONS[direction]
+	plane = direction_index * 7 + (distance - 1)
+	
+	return from_row, from_col, plane
+
 
 def get_all_moves():
     #Initializing the all_moves hashmap
