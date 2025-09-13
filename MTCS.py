@@ -72,7 +72,28 @@ def select_node(root):
 	
 	return current
 
-def expand_node(node, model, device, game_history=None):
+def add_dirichlet_noise(policy_dict, alpha=0.3, noise_weight=0.25):
+	"""
+	Add Dirichlet noise to policy probabilities (AlphaZero paper)
+	Only applied to root node during self-play
+	"""
+	moves = list(policy_dict.keys())
+	probs = list(policy_dict.values())
+	
+	if len(moves) == 0:
+		return policy_dict
+	
+	# Generate Dirichlet noise
+	noise = np.random.dirichlet([alpha] * len(moves))
+	
+	# Mix original probabilities with noise
+	noisy_policy = {}
+	for i, move in enumerate(moves):
+		noisy_policy[move] = (1 - noise_weight) * probs[i] + noise_weight * noise[i]
+	
+	return noisy_policy
+
+def expand_node(node, model, device, game_history=None, add_noise=False):
 	"""
 	Expand node by adding children for all legal moves
 	Returns the expanded node and its policy/value from neural network
@@ -102,6 +123,10 @@ def expand_node(node, model, device, game_history=None):
 		
 		# Convert policy logits to legal move probabilities
 		policy_dict = br.board_to_legal_policy_hash(board, policy_logits.cpu())
+	
+	# Add Dirichlet noise if this is root node (AlphaZero paper)
+	if add_noise:
+		policy_dict = add_dirichlet_noise(policy_dict, alpha=0.3, noise_weight=0.25)
 	
 	# Create child nodes for each legal move
 	for move_str in policy_dict.keys():
@@ -177,7 +202,15 @@ def backpropagate(node, value):
 		value = -value
 		current = current.parent
 
-def mcts_search(root, model, num_simulations, device, game_history=None):
+def get_alphazero_temperature(move_number):
+	"""
+	Get temperature according to AlphaZero paper:
+	- Temperature = 1 for first 30 moves (exploration)
+	- Temperature → 0 after move 30 (exploitation)
+	"""
+	return 1.0 if move_number < 30 else 0.0
+
+def mcts_search(root, model, num_simulations, device, game_history=None, add_root_noise=False):
 	"""
 	Run MCTS for num_simulations iterations
 	Returns root node with updated statistics
@@ -188,7 +221,9 @@ def mcts_search(root, model, num_simulations, device, game_history=None):
 		
 		# Expansion and Simulation
 		if not leaf.is_terminal():
-			expanded_node, value = expand_node(leaf, model, device, game_history)
+			# Add Dirichlet noise only to root node during self-play
+			add_noise = add_root_noise and (leaf == root)
+			expanded_node, value = expand_node(leaf, model, device, game_history, add_noise)
 			if len(expanded_node.children) > 0:
 				# If we expanded, select first child for simulation
 				leaf = expanded_node.children[0]
@@ -264,8 +299,13 @@ def select_move(root, temperature=1.0):
 
 def run_game(model, temperature, num_simulations, device):
 	"""
-	Play a full game using MCTS, collecting training data
+	Play a full game using MCTS with AlphaZero parameters, collecting training data
 	Returns list of (board_state, move_probabilities, game_outcome) tuples
+	
+	AlphaZero implementation:
+	- Dirichlet noise added to root node during self-play
+	- Temperature = 1 for first 30 moves, then temperature → 0
+	- Training data uses temperature = 1 probabilities
 	"""
 	print("Starting new game...")
 	
@@ -291,22 +331,24 @@ def run_game(model, temperature, num_simulations, device):
 			p=1.0
 		)
 		
-		# Run MCTS
-		root = mcts_search(root, model, num_simulations, device, game_history)
+		# Run MCTS with Dirichlet noise at root (AlphaZero self-play)
+		root = mcts_search(root, model, num_simulations, device, game_history, add_root_noise=True)
 		
-		# Get move probabilities for training data
-		move_probs = get_move_probabilities(root, temperature=1.0)  # Use temperature=1 for training
+		# Get move probabilities for training data (always use temperature=1 for training data)
+		move_probs = get_move_probabilities(root, temperature=1.0)
 		
 		# Store training data (board state and MCTS probabilities)
 		training_data.append((board.fen(), move_probs.copy()))
 		
-		# Select and make move
-		selected_move = select_move(root, temperature)
+		# Select and make move using AlphaZero temperature schedule
+		alphazero_temperature = get_alphazero_temperature(move_count)
+		selected_move = select_move(root, alphazero_temperature)
+		
 		if selected_move is None:
 			print("No legal moves available")
 			break
 		
-		print(f"Selected move: {selected_move}")
+		print(f"Selected move: {selected_move} (temp={alphazero_temperature})")
 		
 		# Apply move
 		move_obj = chess.Move.from_uci(selected_move)
@@ -371,8 +413,8 @@ def get_best_move(model, board_fen, num_simulations, device, game_history=None, 
 		p=1.0
 	)
 	
-	# Run MCTS
-	root = mcts_search(root, model, num_simulations, device, game_history)
+	# Run MCTS (no noise for evaluation, only for self-play training)
+	root = mcts_search(root, model, num_simulations, device, game_history, add_root_noise=False)
 	
 	# Get move probabilities
 	move_probs = get_move_probabilities(root, temperature)
@@ -405,8 +447,8 @@ def test_board(model, device):
 		p=1.0
 	)
 	
-	# Run small MCTS search
-	root = mcts_search(root, model, 50, device)
+	# Run small MCTS search (no noise for testing)
+	root = mcts_search(root, model, 50, device, add_root_noise=False)
 	
 	print(f"Root visits: {root.N}")
 	print("Top moves:")
