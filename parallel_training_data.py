@@ -399,19 +399,29 @@ def save_training_data(training_data: List, process_stats: List, output_filename
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         output_filename = f"parallel_training_data_{timestamp}.pkl"
     
+    # Create directories if they don't exist
+    import os
+    os.makedirs("training_data", exist_ok=True)
+    os.makedirs("training_data_stats", exist_ok=True)
+    
+    # Generate full paths with proper organization
+    main_data_path = os.path.join("training_data", output_filename)
+    base_filename = os.path.splitext(output_filename)[0]
+    stats_filename = f"{base_filename}_stats.pkl"
+    stats_path = os.path.join("training_data_stats", stats_filename)
+    
     # Save training data
-    with open(output_filename, 'wb') as f:
+    with open(main_data_path, 'wb') as f:
         pickle.dump(training_data, f)
     
     # Save statistics
-    stats_filename = output_filename.replace('.pkl', '_stats.pkl')
-    with open(stats_filename, 'wb') as f:
+    with open(stats_path, 'wb') as f:
         pickle.dump(process_stats, f)
     
-    print(f"Training data saved to: {output_filename}")
-    print(f"Process statistics saved to: {stats_filename}")
+    print(f"Training data saved to: {main_data_path}")
+    print(f"Process statistics saved to: {stats_path}")
     
-    return output_filename
+    return main_data_path
 
 
 def create_stats_summary(process_stats: List[Dict]) -> str:
@@ -551,10 +561,12 @@ Examples:
             print(f"\n{stats_summary}")
             
             # Save statistics summary as text file
-            summary_filename = filename.replace('.pkl', '_summary.txt')
-            with open(summary_filename, 'w') as f:
+            base_name = os.path.basename(filename)
+            summary_filename = base_name.replace('.pkl', '_summary.txt')
+            summary_path = os.path.join("training_data_stats", summary_filename)
+            with open(summary_path, 'w') as f:
                 f.write(stats_summary)
-            print(f"\nDetailed statistics saved to: {summary_filename}")
+            print(f"\nDetailed statistics saved to: {summary_path}")
             
         else:
             print("No training data generated!")

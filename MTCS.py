@@ -30,18 +30,6 @@ class MTCSNode:
 		board = chess.Board(self.state)
 		return board.is_game_over()
 
-def print_tree(node, level=0):
-	print("  " * level + node.state)
-	print("  " * level + "Team: " + str(node.team))
-	print("  " * level + "action: " + str(node.action))
-	print("  " * level + "N: " + str(node.N))
-	print("  " * level + "W: " + str(node.W))
-	print("  " * level + "Q: " + str(node.Q))
-	print("  " * level + "P: " + str(node.P))
-	for child in node.children:
-		print('\n')
-		print_tree(child, level + 1)
-
 def calculate_ucb(parent, child, c_puct=1.0):
 	"""Calculate UCB1 score with PUCT formula"""
 	if child.N == 0:
@@ -315,9 +303,8 @@ def run_game(model, temperature, num_simulations, device):
 	training_data = []
 	
 	move_count = 0
-	max_moves = 200  # Prevent infinite games
 	
-	while not board.is_game_over() and move_count < max_moves:
+	while not board.is_game_over():
 		print(f"Move {move_count + 1}, {'White' if board.turn else 'Black'} to move")
 		
 		# Create root node for current position
@@ -360,14 +347,16 @@ def run_game(model, temperature, num_simulations, device):
 	# Determine game outcome
 	if board.is_checkmate():
 		# Winner gets +1, loser gets -1
-		game_outcome = 1 if not board.turn else -1  # Opposite of current turn (who got checkmated)
+		# board.turn indicates who is checkmated (whose turn it is when checkmate occurs)
+		game_outcome = -1 if board.turn else 1  # If White's turn -> White checkmated -> Black wins (-1), vice versa
 		print(f"Game over: {'White' if game_outcome == 1 else 'Black'} wins by checkmate")
 	elif board.is_stalemate() or board.is_insufficient_material() or board.is_seventyfive_moves() or board.is_fivefold_repetition():
 		game_outcome = 0  # Draw
 		print("Game over: Draw")
 	else:
-		game_outcome = 0  # Max moves reached
-		print("Game over: Maximum moves reached")
+		# This should not happen if game loop only continues while not board.is_game_over()
+		game_outcome = 0  # Fallback draw
+		print("Game over: Unexpected end condition")
 	
 	# Convert training data to final format with game outcomes
 	final_training_data = []
@@ -429,34 +418,3 @@ def get_best_move(model, board_fen, num_simulations, device, game_history=None, 
 		best_move = select_move(root, temperature)
 	
 	return best_move, move_probs
-
-def test_board(model, device):
-	"""
-	Test function to verify MCTS is working
-	"""
-	print("Testing MCTS with starting position...")
-	
-	board = chess.Board()
-	root = MTCSNode(
-		team=True,
-		state=board.fen(),
-		action=None,
-		n=0,
-		w=0.0,
-		q=0.0,
-		p=1.0
-	)
-	
-	# Run small MCTS search (no noise for testing)
-	root = mcts_search(root, model, 50, device, add_root_noise=False)
-	
-	print(f"Root visits: {root.N}")
-	print("Top moves:")
-	
-	# Sort children by visit count
-	children_sorted = sorted(root.children, key=lambda x: x.N, reverse=True)
-	
-	for i, child in enumerate(children_sorted[:5]):
-		print(f"{i+1}. {child.action}: N={child.N}, Q={child.Q:.3f}, P={child.P:.3f}")
-	
-	return root

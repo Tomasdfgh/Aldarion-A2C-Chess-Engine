@@ -162,6 +162,7 @@ def board_to_legal_policy_hash(board, policy):
 	
 	return policy_distribution
 
+
 def normalize_hash(inp_hash):
 	sum_ = 0
 	for i in inp_hash:
