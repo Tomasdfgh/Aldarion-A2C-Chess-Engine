@@ -240,25 +240,26 @@ def mcts_search(root, model, num_simulations, device, game_history=None, add_roo
 	Run MCTS for num_simulations iterations
 	Returns root node with updated statistics
 	"""
-	# Expand root and apply Dirichlet noise exactly once before simulations (AlphaZero paper)
+	# Expand root if needed (for fresh roots or reused roots with no children)
 	if not root.is_expanded and not root.is_terminal():
 		_, _ = expand_node(root, model, device, game_history, add_noise=False)  # Expand without noise first
+	
+	# Apply fresh Dirichlet noise to root every move (AlphaZero paper)
+	# This applies to both fresh roots and reused subtree roots
+	if add_root_noise and len(root.children) > 0:
+		# Create policy dict from children's current priors
+		policy_dict = {}
+		for child in root.children:
+			policy_dict[child.action] = child.P
 		
-		# Apply Dirichlet noise to root's children priors exactly once
-		if add_root_noise and len(root.children) > 0:
-			# Create policy dict from children's priors
-			policy_dict = {}
-			for child in root.children:
-				policy_dict[child.action] = child.P
-			
-			# Apply noise
-			noisy_policy = add_dirichlet_noise(policy_dict, alpha=0.3, noise_weight=0.25)
-			
-			# Update children's priors with noisy values
-			for child in root.children:
-				child.P = noisy_policy[child.action]
-			
-			print("Applied Dirichlet noise to root")
+		# Apply fresh Dirichlet noise
+		noisy_policy = add_dirichlet_noise(policy_dict, alpha=0.3, noise_weight=0.25)
+		
+		# Update children's priors with fresh noisy values
+		for child in root.children:
+			child.P = noisy_policy[child.action]
+		
+		print("Applied fresh Dirichlet noise to root")
 	
 	# Run MCTS simulations
 	for i in range(num_simulations):
