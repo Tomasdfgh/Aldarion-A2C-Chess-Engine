@@ -17,6 +17,7 @@ import os
 import sys
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 import pickle
@@ -59,7 +60,7 @@ class ChessTrainingDataset(Dataset):
         # Convert board to 119-channel input tensor
         board_tensor = br.board_to_full_alphazero_input(board_fen)
         
-        # Convert move probabilities to 4,672-dimensional policy vector using existing function
+        # Convert move probabilities to 4,672-dimensional policy vector
         policy_vector = torch.zeros(4672, dtype=torch.float32)
         for move, prob in move_probs.items():
             try:
@@ -70,10 +71,14 @@ class ChessTrainingDataset(Dataset):
                 # Skip invalid moves
                 continue
         
+        # Create legal move mask for this position
+        board = chess.Board(board_fen)
+        legal_mask = br.create_legal_move_mask(board).flatten()  # Flatten to 4672
+        
         # Game outcome as value target
         value_target = torch.tensor([game_outcome], dtype=torch.float32)
         
-        return board_tensor.float(), policy_vector, value_target
+        return board_tensor.float(), policy_vector, legal_mask, value_target
 
 
 def load_training_data(data_files: List[str]) -> List[Tuple[str, Dict, float]]:
@@ -125,24 +130,32 @@ def load_training_data(data_files: List[str]) -> List[Tuple[str, Dict, float]]:
     return all_training_data
 
 
-def compute_loss(model_output, targets, policy_weight=1.0, value_weight=1.0):
+def compute_loss(model_output, targets, legal_masks, policy_weight=1.0, value_weight=1.0):
     """
-    Compute AlphaZero loss: policy loss + value loss
+    Compute AlphaZero loss with proper legal move masking
     
     Args:
-        model_output: Tuple of (policy_logits, value_pred)
+        model_output: Tuple of (policy_logits, value_pred) - logits are raw scores
         targets: Tuple of (target_policy, target_value)
+        legal_masks: Tensor of legal move masks for each position in batch
         policy_weight: Weight for policy loss
         value_weight: Weight for value loss
     
     Returns:
         Dictionary with total loss and component losses
     """
-    policy_pred, value_pred = model_output
+    policy_logits, value_pred = model_output
     target_policy, target_value = targets
     
-    # Policy loss: Cross-entropy between MCTS probabilities and model predictions
-    policy_loss = -torch.sum(target_policy * torch.log(policy_pred + 1e-8), dim=1).mean()
+    # Apply legal move masking to logits before softmax
+    masked_logits = policy_logits.clone()
+    masked_logits[legal_masks == 0] = -float('inf')
+    
+    # Apply log-softmax for stable cross-entropy computation
+    log_policy_probs = F.log_softmax(masked_logits, dim=1)
+    
+    # Policy loss: Cross-entropy between MCTS policy and masked network policy
+    policy_loss = -torch.sum(target_policy * log_policy_probs, dim=1).mean()
     
     # Value loss: MSE between game outcome and predicted value
     value_loss = nn.MSELoss()(value_pred.squeeze(), target_value.squeeze())
@@ -171,20 +184,22 @@ def train_epoch(model, dataloader, optimizer, device, epoch_num):
     total_value_loss = 0.0
     num_batches = 0
     
-    for batch_idx, (board_tensors, target_policies, target_values) in enumerate(dataloader):
+    for batch_idx, (board_tensors, target_policies, legal_masks, target_values) in enumerate(dataloader):
         # Move to device
         board_tensors = board_tensors.to(device)
-        target_policies = target_policies.to(device)  
+        target_policies = target_policies.to(device)
+        legal_masks = legal_masks.to(device)
         target_values = target_values.to(device)
         
         # Forward pass
         optimizer.zero_grad()
-        policy_pred, value_pred = model(board_tensors)
+        policy_logits, value_pred = model(board_tensors)  # Raw logits now
         
-        # Compute loss
+        # Compute loss with legal move masking
         losses = compute_loss(
-            (policy_pred, value_pred), 
-            (target_policies, target_values)
+            (policy_logits, value_pred), 
+            (target_policies, target_values),
+            legal_masks
         )
         
         # Backward pass
@@ -229,19 +244,21 @@ def validate_model(model, dataloader, device):
     num_batches = 0
     
     with torch.no_grad():
-        for board_tensors, target_policies, target_values in dataloader:
+        for board_tensors, target_policies, legal_masks, target_values in dataloader:
             # Move to device
             board_tensors = board_tensors.to(device)
             target_policies = target_policies.to(device)
+            legal_masks = legal_masks.to(device)
             target_values = target_values.to(device)
             
             # Forward pass
-            policy_pred, value_pred = model(board_tensors)
+            policy_logits, value_pred = model(board_tensors)
             
-            # Compute loss
+            # Compute loss with legal move masking
             losses = compute_loss(
-                (policy_pred, value_pred), 
-                (target_policies, target_values)
+                (policy_logits, value_pred), 
+                (target_policies, target_values),
+                legal_masks
             )
             
             # Accumulate metrics

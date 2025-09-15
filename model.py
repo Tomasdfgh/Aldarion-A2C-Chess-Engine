@@ -58,7 +58,6 @@ class ChessNet(nn.Module):
 
         # Activation functions, Batch Normalization, and identity
         self.relu = nn.ReLU()
-        self.softmax = nn.Softmax(dim=1)
         self.tanh = nn.Tanh()
         self.batch_norm = nn.BatchNorm2d(256)
         self.batch_norm_one = nn.BatchNorm2d(1)
@@ -138,6 +137,6 @@ class ChessNet(nn.Module):
         #Policy Head
         policy = self.relu(self.batch_norm_two(self.conv_Policy(x)))
         policy = policy.view(-1, 2*8*8)
-        policy = self.softmax(self.linear3(policy))
+        policy = self.linear3(policy)  # Return raw logits, no softmax
 
         return policy, value

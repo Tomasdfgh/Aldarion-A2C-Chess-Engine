@@ -1,6 +1,7 @@
 import chess
 import numpy as np
 import torch
+import torch.nn.functional as F
 
 
 #This function converts the current board into 14 current position planes (12 pieces + 2 repetition counters).
@@ -144,21 +145,59 @@ def board_to_game_state_array(board, turn):
 	
 	return torch.tensor(array)
 
-def board_to_legal_policy_hash(board, policy):
+def create_legal_move_mask(board):
+	"""
+	Create a mask for legal moves in 8x8x73 format
+	Returns tensor with 1.0 for legal moves, 0.0 for illegal moves
+	"""
+	mask = torch.zeros(8, 8, 73)
+	legal_moves = list(board.legal_moves)
 	
-	policy = policy.reshape(8,8,73)
+	for move in legal_moves:
+		try:
+			row, col, plane = uci_to_policy_index(str(move))
+			mask[row, col, plane] = 1.0
+		except ValueError:
+			# Skip moves that can't be encoded
+			continue
+	
+	return mask
+
+
+def board_to_legal_policy_hash(board, policy_logits):
+	"""
+	Convert raw policy logits to legal move probabilities
+	Applies masking BEFORE softmax to ensure proper probability distribution
+	"""
+	# Reshape logits to 8x8x73
+	policy_logits = policy_logits.reshape(8, 8, 73)
+	
+	# Create legal move mask
+	legal_mask = create_legal_move_mask(board)
+	
+	# Apply mask by setting illegal moves to -infinity
+	masked_logits = policy_logits.clone()
+	masked_logits[legal_mask == 0] = -float('inf')
+	
+	# Apply softmax only over legal moves
+	policy_probs = F.softmax(masked_logits.flatten(), dim=0).reshape(8, 8, 73)
+	
+	# Extract probabilities for legal moves
 	legal_moves = list(board.legal_moves)
 	policy_distribution = {}
 	
 	for move in legal_moves:
 		try:
 			row, col, plane = uci_to_policy_index(str(move))
-			policy_distribution[str(move)] = policy[row, col, plane].item()
+			policy_distribution[str(move)] = policy_probs[row, col, plane].item()
 		except ValueError as e:
 			print(f"   {move} -> ERROR: {e}")
 	
-	# Normalize the distribution
-	policy_distribution = normalize_hash(policy_distribution)
+	# Should already be normalized due to softmax, but verify
+	total = sum(policy_distribution.values())
+	if abs(total - 1.0) > 1e-6:
+		print(f"Warning: Policy distribution sum = {total}, expected 1.0")
+		policy_distribution = normalize_hash(policy_distribution)
 	
 	return policy_distribution
 
