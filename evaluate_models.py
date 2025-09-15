@@ -2,7 +2,7 @@
 """
 Unified Model Evaluation Script for Aldarion Chess Engine
 
-This script uses the same efficient process management as parallel_training_data.py
+This script uses unified efficient process management for model evaluation
 to evaluate two chess models against each other. Each process plays multiple games
 sequentially instead of creating one process per game.
 """
@@ -20,7 +20,7 @@ from parallel_utils import run_parallel_task_execution, final_gpu_cleanup
 from parallel_workers import evaluation_worker_process
 
 
-def evaluate_models_unified(old_model_path: str, new_model_path: str, 
+def evaluate_models(old_model_path: str, new_model_path: str, 
                            num_games: int, num_simulations: int,
                            cpu_utilization: float = 0.8) -> Dict:
     """
@@ -202,13 +202,13 @@ def main():
         epilog="""
 Examples:
   # Basic evaluation
-  python3 evaluate_models_unified.py --old_model model_v1.pth --new_model model_v2.pth --num_games 30 --num_simulations 200
+  python3 evaluate_models.py --old_model model_v1.pth --new_model model_v2.pth --num_games 30 --num_simulations 200
   
   # High-quality evaluation
-  python3 evaluate_models_unified.py --old_model model_weights.pth --new_model model_weights_v5.pth --num_games 100 --num_simulations 400
+  python3 evaluate_models.py --old_model model_weights.pth --new_model model_weights_v5.pth --num_games 100 --num_simulations 400
   
   # Fast evaluation with reduced CPU usage
-  python3 evaluate_models_unified.py --old_model current_best.pth --new_model candidate.pth --num_games 200 --num_simulations 800 --cpu_utilization 0.5
+  python3 evaluate_models.py --old_model current_best.pth --new_model candidate.pth --num_games 200 --num_simulations 800 --cpu_utilization 0.5
 
 Notes:
 - Score-based win rate is the primary metric (wins + 0.5*draws)
@@ -264,7 +264,7 @@ Notes:
         print(f"  New model: {args.new_model}")
         print(f"  Target: >{args.win_threshold}% score rate for acceptance")
         
-        results = evaluate_models_unified(
+        results = evaluate_models(
             old_model_path=args.old_model,
             new_model_path=args.new_model,
             num_games=args.num_games,

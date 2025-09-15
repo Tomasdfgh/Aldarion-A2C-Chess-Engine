@@ -130,16 +130,16 @@ def main():
         epilog="""
 Examples:
   # Auto-detect optimal configuration
-  python3 selfplay_unified.py --total_games 100
+  python3 selfplay_generate_data.py --total_games 100
   
   # Use 90% CPU utilization
-  python3 selfplay_unified.py --total_games 200 --cpu_utilization 0.90
+  python3 selfplay_generate_data.py --total_games 200 --cpu_utilization 0.90
   
   # Manual override: max 8 processes per GPU
-  python3 selfplay_unified.py --total_games 500 --max_processes_per_gpu 8
+  python3 selfplay_generate_data.py --total_games 500 --max_processes_per_gpu 8
   
   # High-intensity run with detailed statistics
-  python3 selfplay_unified.py --total_games 1000 --num_simulations 200 --cpu_utilization 0.95
+  python3 selfplay_generate_data.py --total_games 1000 --num_simulations 200 --cpu_utilization 0.95
         """
     )
     
