@@ -71,6 +71,11 @@ class ChessTrainingDataset(Dataset):
                 # Skip invalid moves
                 continue
         
+        # Defensive normalization in case move_probs aren't perfectly normalized
+        s = policy_vector.sum()
+        if s > 0:
+            policy_vector /= s
+        
         # Create legal move mask for this position
         board = chess.Board(board_fen)
         legal_mask = br.create_legal_move_mask(board).flatten()  # Flatten to 4672, bool type
@@ -166,17 +171,10 @@ def compute_loss(model_output, targets, legal_masks, policy_weight=1.0, value_we
     policy_logits, value_pred = model_output
     target_policy, target_value = targets
     
-    # Apply legal move masking to logits
-    masked_logits = policy_logits.clone()
-    masked_logits[legal_masks == False] = -1e3  # Mask illegal moves (smaller value)
-    
-    # Apply softmax to get probabilities
-    policy_probs = F.softmax(masked_logits, dim=1)
-    
-    # Cross-entropy loss: -sum(target * log(prediction))
-    # Add small epsilon to prevent log(0)
-    epsilon = 1e-8
-    policy_loss = -torch.sum(target_policy * torch.log(policy_probs + epsilon), dim=1).mean()
+    # Apply legal move masking to logits (more stable approach)
+    masked_logits = policy_logits.masked_fill(~legal_masks.bool(), float("-inf"))
+    logp = F.log_softmax(masked_logits, dim=1)  # More stable than softmax+log
+    policy_loss = -(target_policy * logp).sum(1).mean()
     
     # Value loss: MSE between game outcome and predicted value
     value_loss = nn.MSELoss()(value_pred.squeeze(), target_value.squeeze())
@@ -229,6 +227,10 @@ def train_epoch(model, dataloader, optimizer, device, epoch_num):
         
         # Backward pass
         losses['total_loss'].backward()
+        
+        # Gradient clipping for stability
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+        
         optimizer.step()
         
         # Accumulate metrics
@@ -396,8 +398,8 @@ Examples:
                         help='Batch size for training (default: 32)')
     parser.add_argument('--lr', type=float, default=0.001,
                         help='Learning rate (default: 0.001)')
-    parser.add_argument('--weight_decay', type=float, default=1e-3,
-                        help='L2 regularization weight decay (default: 1e-3)')
+    parser.add_argument('--weight_decay', type=float, default=1e-4,
+                        help='L2 regularization weight decay (default: 1e-4)')
     parser.add_argument('--validation_split', type=float, default=0.1,
                         help='Fraction of data for validation (default: 0.1)')
     parser.add_argument('--resume', type=str, default=None,
@@ -478,7 +480,7 @@ Examples:
     elif os.path.exists(args.model_path):
         print(f"Loading pretrained weights from {args.model_path}")
         try:
-            state_dict = torch.load(args.model_path, map_location=device, weights_only=True)
+            state_dict = torch.load(args.model_path, map_location=device)
             # Handle potential size mismatch in policy head
             if 'linear3.weight' in state_dict and state_dict['linear3.weight'].shape[0] != 4672:
                 print(f"Policy head size mismatch. Expected 4672, got {state_dict['linear3.weight'].shape[0]}")
