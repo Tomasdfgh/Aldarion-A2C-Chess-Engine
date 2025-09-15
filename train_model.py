@@ -31,7 +31,6 @@ import traceback
 # Import existing modules
 import model as md
 import board_reader as br
-import move_encoder as me
 
 
 class ChessTrainingDataset(Dataset):
@@ -46,11 +45,10 @@ class ChessTrainingDataset(Dataset):
     
     def __init__(self, training_data: List[Tuple[str, Dict, float]]):
         self.training_data = training_data
-        self.move_encoder = me.AlphaZeroMoveEncoder()
-        self.num_moves = 4672  # Fixed AlphaZero vocabulary
+        self.num_moves = 4672  # AlphaZero 8×8×73 = 4,672 moves
         
         print(f"Dataset initialized with {len(training_data)} training examples")
-        print(f"Using fixed AlphaZero vocabulary: {self.num_moves} moves")
+        print(f"Using AlphaZero 8×8×73 policy head: {self.num_moves} moves")
     
     def __len__(self):
         return len(self.training_data)
@@ -61,8 +59,16 @@ class ChessTrainingDataset(Dataset):
         # Convert board to 119-channel input tensor
         board_tensor = br.board_to_full_alphazero_input(board_fen)
         
-        # Convert move probabilities to fixed 4,672-dimensional policy vector
-        policy_vector = self.move_encoder.encode_policy(move_probs)
+        # Convert move probabilities to 4,672-dimensional policy vector using existing function
+        policy_vector = torch.zeros(4672, dtype=torch.float32)
+        for move, prob in move_probs.items():
+            try:
+                r, c, pl = br.uci_to_policy_index(str(move))
+                idx = (r * 73) + pl + (c * 73 * 8)  # 8×8×73 flattening
+                policy_vector[idx] = float(prob)
+            except:
+                # Skip invalid moves
+                continue
         
         # Game outcome as value target
         value_target = torch.tensor([game_outcome], dtype=torch.float32)
@@ -408,9 +414,10 @@ Examples:
     print("Initializing model...")
     model = md.ChessNet()
     
-    # Fixed AlphaZero policy head (always 4,672 moves)
+    # Fixed AlphaZero policy head (8×8×73 = 4,672)
     model.linear3 = nn.Linear(2 * 8 * 8, 4672)
     model = model.to(device)
+    print(f"Policy head size: 4,672 moves (8×8×73)")
     
     # Load pretrained weights if available
     start_epoch = 0
