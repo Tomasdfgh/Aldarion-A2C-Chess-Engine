@@ -254,7 +254,51 @@ def run_single_iteration(args):
         # Copy new model to iteration directory
         shutil.copy2(new_model_path, os.path.join(iteration_dir, "new_model.pth"))
         
+        # GPU Memory Cleanup before evaluation
+        print(f"\n🧹 Aggressive GPU memory cleanup before evaluation...")
+        
+        # Kill any lingering Python processes that might be holding GPU memory
+        print("🔪 Killing any lingering Python processes...")
+        kill_commands = [
+            "pkill -f 'python.*parallel_training_data'",
+            "pkill -f 'python.*MTCS'", 
+            "pkill -f 'python.*model'",
+        ]
+        
+        for cmd in kill_commands:
+            try:
+                subprocess.run(cmd, shell=True, capture_output=True, timeout=5)
+            except:
+                pass  # Ignore errors if no processes to kill
+        
+        print("⏳ Waiting for all processes to fully terminate...")
+        time.sleep(5)  # Give more time for processes to clean up
+        
+        # Clear GPU memory multiple times
+        for i in range(3):
+            cleanup_command = "python3 -c \"import torch; torch.cuda.empty_cache() if torch.cuda.is_available() else None; [torch.cuda.empty_cache() for i in range(torch.cuda.device_count()) if torch.cuda.is_available()]; print(f'GPU memory cleared {i+1}/3')\""
+            try:
+                result = subprocess.run(cleanup_command, shell=True, check=True, capture_output=True, text=True)
+                print(f"✅ {result.stdout.strip()}")
+            except Exception as e:
+                print(f"⚠️  GPU cleanup warning: {e}")
+            time.sleep(1)
+        
+        # Force garbage collection
+        import gc
+        gc.collect()
+        
+        print("🔍 Checking GPU memory status...")
+        try:
+            gpu_check = "python3 -c \"import torch; print(f'GPU memory: {torch.cuda.memory_allocated()/1e9:.2f}GB allocated, {torch.cuda.memory_reserved()/1e9:.2f}GB reserved') if torch.cuda.is_available() else print('CUDA not available')\""
+            result = subprocess.run(gpu_check, shell=True, check=True, capture_output=True, text=True)
+            print(f"📊 {result.stdout.strip()}")
+        except Exception as e:
+            print(f"⚠️  GPU status check failed: {e}")
+        
         # STEP 3: Evaluate new model against current best
+        # Use lower CPU utilization for evaluation to reduce GPU memory usage
+        eval_cpu_utilization = min(0.3, args.cpu_utilization)  # Cap at 30% to reduce memory pressure
         evaluation_command = (
             f"python3 evaluate_models.py "
             f"--old_model {current_best_model} "
@@ -262,7 +306,7 @@ def run_single_iteration(args):
             f"--num_games {args.eval_games} "
             f"--num_simulations {args.eval_simulations} "
             f"--win_threshold {args.win_threshold} "
-            f"--cpu_utilization {args.cpu_utilization}"
+            f"--cpu_utilization {eval_cpu_utilization}"
         )
         
         step_start = time.time()
@@ -270,6 +314,7 @@ def run_single_iteration(args):
         print(f"Old model: {os.path.basename(current_best_model)}")
         print(f"New model: {os.path.basename(new_model_path)}")
         print(f"Games: {args.eval_games}, Win threshold: {args.win_threshold}%")
+        print(f"CPU utilization reduced to {eval_cpu_utilization*100:.0f}% for memory conservation")
         
         success, return_code = run_command_with_output(
             evaluation_command,
