@@ -60,7 +60,7 @@ class ChessTrainingDataset(Dataset):
         
         # Convert board history list to chess.Board objects for board_reader
         game_history = []
-        for fen in history_fens[:-1]:  # All except current (last) position
+        for fen in history_fens:  # Previous positions only (current not included)
             game_history.append(chess.Board(fen))
         
         # Convert current board with history to 119-channel input tensor

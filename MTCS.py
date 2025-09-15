@@ -32,11 +32,9 @@ class MTCSNode:
 
 def calculate_ucb(parent, child, c_puct=1.0):
 	"""Calculate UCB1 score with PUCT formula"""
-	if child.N == 0:
-		return float('inf')
-	
-	exploration = c_puct * child.P * math.sqrt(parent.N) / (1 + child.N)
-	return child.Q + exploration
+	q = child.Q  # 0 when N==0
+	u = c_puct * child.P * math.sqrt(max(1, parent.N)) / (1 + child.N)
+	return q + u
 
 def select_node(root):
 	"""
@@ -168,10 +166,8 @@ def simulate(node, model, device, game_history=None):
 		_, value = model(input_tensor)
 		value = value.squeeze(0).item()
 		
-		# Convert value to current player's perspective
-		# Model outputs value from white's perspective, adjust if black to move
-		if not board.turn:  # Black to move
-			value = -value
+		# Model outputs value from side-to-move perspective (matches training targets)
+		# No flipping needed - value is already from current player's perspective
 	
 	return value
 
@@ -322,12 +318,10 @@ def run_game(model, temperature, num_simulations, device):
 		# Get move probabilities for training data (always use temperature=1 for training data)
 		move_probs = get_move_probabilities(root, temperature=1.0)
 		
-		# Store training data with 8-move history (current + 7 previous)
-		# Create history list: most recent 8 positions (current + 7 previous)
+		# Store training data with history (previous positions only)
+		# game_history contains FEN strings of previous positions
+		# Current position is separate - encoder will combine them
 		history_fens = game_history[-7:] if len(game_history) >= 7 else game_history[:]
-		# Pad with current position if we don't have enough history
-		while len(history_fens) < 8:
-			history_fens.insert(0, board.fen())
 		
 		training_data.append((board.fen(), history_fens, move_probs.copy()))
 		
@@ -344,7 +338,7 @@ def run_game(model, temperature, num_simulations, device):
 		# Apply move
 		move_obj = chess.Move.from_uci(selected_move)
 		board.push(move_obj)
-		game_history.append(board.copy())
+		game_history.append(board.fen())
 		
 		move_count += 1
 	

@@ -180,7 +180,7 @@ def worker_process(gpu_device: str, num_games: int, num_simulations: int,
         model.to(device)
         
         if os.path.exists(model_path):
-            state = torch.load(model_path, map_location=device, weights_only=True)
+            state = torch.load(model_path, map_location=device)
             model.load_state_dict(state)
             model.eval()
             print(f"Process {process_id}: Model loaded successfully on {gpu_device}")
