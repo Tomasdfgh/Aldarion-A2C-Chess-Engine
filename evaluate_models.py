@@ -125,11 +125,36 @@ def play_competitive_game(white_model_path: str, black_model_path: str,
         }
         
         print(f"Game {game_id}: {result_str} in {move_count} moves ({game_time:.1f}s)")
+        
+        # Explicit GPU memory cleanup
+        try:
+            del white_model, black_model
+            if torch.cuda.is_available() and device.type == 'cuda':
+                torch.cuda.empty_cache()
+                torch.cuda.synchronize()
+                print(f"Game {game_id}: GPU memory cleared")
+        except Exception as cleanup_error:
+            print(f"Game {game_id}: Warning - GPU cleanup error: {cleanup_error}")
+        
         return game_result
         
     except Exception as e:
         print(f"Game {game_id}: Fatal error: {e}")
         traceback.print_exc()
+        
+        # Cleanup on error
+        try:
+            if 'white_model' in locals():
+                del white_model
+            if 'black_model' in locals():
+                del black_model
+            if torch.cuda.is_available() and 'device' in locals() and device.type == 'cuda':
+                torch.cuda.empty_cache()
+                torch.cuda.synchronize()
+                print(f"Game {game_id}: GPU memory cleared on error")
+        except Exception as cleanup_error:
+            print(f"Game {game_id}: Warning - GPU cleanup error: {cleanup_error}")
+        
         return {
             'game_id': game_id,
             'error': str(e),
@@ -293,6 +318,19 @@ def evaluate_models_parallel(old_model_path: str, new_model_path: str,
     print(f"  Average game time: {avg_game_time:.1f} seconds")
     print(f"  Average moves per game: {avg_moves:.1f}")
     print(f"  Games per minute: {total_games_played / (execution_time/60):.1f}")
+    
+    # Final GPU memory cleanup after all evaluation processes complete
+    try:
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+            # Clear all GPU devices
+            for i in range(torch.cuda.device_count()):
+                with torch.cuda.device(i):
+                    torch.cuda.empty_cache()
+            print("🧹 Final evaluation GPU memory cleanup completed")
+    except Exception as cleanup_error:
+        print(f"Warning - Final evaluation GPU cleanup error: {cleanup_error}")
     
     return {
         'new_model_wins': new_model_wins,

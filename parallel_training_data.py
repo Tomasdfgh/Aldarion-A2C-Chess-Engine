@@ -263,11 +263,34 @@ def worker_process(gpu_device: str, num_games: int, num_simulations: int,
         
         print(f"Process {process_id}: Completed {games_completed}/{num_games} games in {total_time:.1f}s")
         print(f"Process {process_id}: {len(all_training_data)} examples, {games_completed/total_time*60:.1f} games/min")
+        
+        # Explicit GPU memory cleanup
+        try:
+            del model
+            if torch.cuda.is_available() and device.type == 'cuda':
+                torch.cuda.empty_cache()
+                torch.cuda.synchronize()
+                print(f"Process {process_id}: GPU memory cleared")
+        except Exception as cleanup_error:
+            print(f"Process {process_id}: Warning - GPU cleanup error: {cleanup_error}")
+        
         return all_training_data, process_stats
         
     except Exception as e:
         print(f"Process {process_id}: Fatal error: {e}")
         traceback.print_exc()
+        
+        # Cleanup on error
+        try:
+            if 'model' in locals():
+                del model
+            if torch.cuda.is_available() and 'device' in locals() and device.type == 'cuda':
+                torch.cuda.empty_cache()
+                torch.cuda.synchronize()
+                print(f"Process {process_id}: GPU memory cleared on error")
+        except Exception as cleanup_error:
+            print(f"Process {process_id}: Warning - GPU cleanup error: {cleanup_error}")
+        
         return [], {
             'process_id': process_id, 
             'gpu_device': gpu_device,
@@ -380,6 +403,19 @@ def run_parallel_training_generation(total_games: int, num_simulations: int,
     print(f"  White wins: {total_white_wins} ({total_white_wins/total_games_completed*100:.1f}%)" if total_games_completed > 0 else "")
     print(f"  Black wins: {total_black_wins} ({total_black_wins/total_games_completed*100:.1f}%)" if total_games_completed > 0 else "")
     print(f"  Draws: {total_draws} ({total_draws/total_games_completed*100:.1f}%)" if total_games_completed > 0 else "")
+    
+    # Final GPU memory cleanup after all processes complete
+    try:
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+            # Clear all GPU devices
+            for i in range(torch.cuda.device_count()):
+                with torch.cuda.device(i):
+                    torch.cuda.empty_cache()
+            print("🧹 Final GPU memory cleanup completed")
+    except Exception as cleanup_error:
+        print(f"Warning - Final GPU cleanup error: {cleanup_error}")
     
     return all_training_data, process_statistics
 
