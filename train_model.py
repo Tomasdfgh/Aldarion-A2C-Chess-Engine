@@ -346,6 +346,28 @@ def save_model_checkpoint(model, optimizer, epoch, metrics, checkpoint_path):
     print(f"Model checkpoint saved to {checkpoint_path}")
 
 
+def create_alphazero_lr_scheduler(optimizer, total_epochs):
+    """
+    Create AlphaZero learning rate scheduler
+    Paper schedule: LR starts at base_lr, decays by 10x at steps 400k and 600k
+    We'll adapt this to epoch-based training with reasonable decay points
+    """
+    def lr_lambda(epoch):
+        # Adapt AlphaZero's step-based schedule to epoch-based
+        # Original: decay at 400k (66.7%), 600k (100%) steps  
+        # Adapted: decay at 60%, 80% of total epochs
+        decay_epoch1 = int(0.6 * total_epochs)  # First decay at 60%
+        decay_epoch2 = int(0.8 * total_epochs)  # Second decay at 80%
+        
+        if epoch < decay_epoch1:
+            return 1.0      # Full learning rate
+        elif epoch < decay_epoch2:
+            return 0.1      # 10x decay
+        else:
+            return 0.01     # 100x decay
+    
+    return optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
+
 def plot_training_metrics(train_metrics_history, val_metrics_history, save_path=None):
     """Plot training curves"""
     epochs = range(1, len(train_metrics_history) + 1)
@@ -401,8 +423,11 @@ Examples:
   # Train on single data file (automatically finds in training_data/)
   python3 train_model.py --data parallel_training_data_20241201.pkl
   
-  # Train on multiple files with custom parameters
-  python3 train_model.py --data file1.pkl file2.pkl --epochs 20 --lr 0.001
+  # Train on multiple files with custom parameters (SGD default)
+  python3 train_model.py --data file1.pkl file2.pkl --epochs 20 --lr 0.2
+  
+  # Use Adam optimizer instead of SGD
+  python3 train_model.py --data file1.pkl --optimizer adam --lr 0.001
   
   # Resume training from checkpoint
   python3 train_model.py --data latest.pkl --resume model_checkpoint_epoch_10.pth
@@ -420,10 +445,16 @@ Examples:
                         help='Number of training epochs (default: 10)')
     parser.add_argument('--batch_size', type=int, default=32,
                         help='Batch size for training (default: 32)')
-    parser.add_argument('--lr', type=float, default=0.001,
-                        help='Learning rate (default: 0.001)')
+    parser.add_argument('--lr', type=float, default=0.2,
+                        help='Learning rate (default: 0.2 for SGD, 0.001 for Adam)')
     parser.add_argument('--weight_decay', type=float, default=1e-4,
                         help='L2 regularization weight decay (default: 1e-4)')
+    parser.add_argument('--optimizer', type=str, default='sgd', choices=['sgd', 'adam'],
+                        help='Optimizer type: sgd (AlphaZero paper) or adam (default: sgd)')
+    parser.add_argument('--momentum', type=float, default=0.9,
+                        help='SGD momentum (default: 0.9, AlphaZero paper value)')
+    parser.add_argument('--lr_schedule', type=str, default='alphazero', choices=['alphazero', 'step', 'none'],
+                        help='Learning rate schedule: alphazero, step, or none (default: alphazero)')
     parser.add_argument('--validation_split', type=float, default=0.1,
                         help='Fraction of data for validation (default: 0.1)')
     parser.add_argument('--resume', type=str, default=None,
@@ -435,9 +466,22 @@ Examples:
     
     args = parser.parse_args()
     
+    # Adjust default learning rate based on optimizer if not explicitly set
+    if args.lr == 0.2 and args.optimizer == 'adam':
+        args.lr = 0.001  # Adam's typical learning rate
+        print("Auto-adjusted learning rate to 0.001 for Adam optimizer")
+    elif args.lr == 0.001 and args.optimizer == 'sgd':
+        args.lr = 0.2  # AlphaZero's SGD learning rate
+        print("Auto-adjusted learning rate to 0.2 for SGD optimizer")
+    
     # Setup
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
+    print(f"Optimizer: {args.optimizer.upper()}")
+    if args.optimizer == 'sgd':
+        print(f"Momentum: {args.momentum}")
+    print(f"Learning rate: {args.lr}")
+    print(f"LR Schedule: {args.lr_schedule}")
     
     # Load training data
     print("Loading training data...")
@@ -520,8 +564,30 @@ Examples:
         print("No pretrained weights found. Starting with random initialization")
     
     # Setup optimizer and learning rate scheduler
-    optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
+    if args.optimizer == 'sgd':
+        optimizer = optim.SGD(model.parameters(), 
+                             lr=args.lr, 
+                             momentum=args.momentum, 
+                             weight_decay=args.weight_decay)
+        print(f"Using SGD optimizer (AlphaZero paper): lr={args.lr}, momentum={args.momentum}")
+    else:  # adam
+        optimizer = optim.Adam(model.parameters(), 
+                              lr=args.lr, 
+                              weight_decay=args.weight_decay)
+        print(f"Using Adam optimizer: lr={args.lr}")
+    
+    # Setup learning rate scheduler
+    if args.lr_schedule == 'alphazero':
+        scheduler = create_alphazero_lr_scheduler(optimizer, args.epochs)
+        decay_epoch1 = int(0.6 * args.epochs)
+        decay_epoch2 = int(0.8 * args.epochs)
+        print(f"Using AlphaZero learning rate schedule (decay at epochs {decay_epoch1} and {decay_epoch2})")
+    elif args.lr_schedule == 'step':
+        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
+        print("Using step LR schedule (decay every 10 epochs)")
+    else:  # none
+        scheduler = optim.lr_scheduler.LambdaLR(optimizer, lambda epoch: 1.0)
+        print("Using constant learning rate (no schedule)")
     
     # Resume optimizer state if checkpoint provided
     if args.resume and 'optimizer_state_dict' in checkpoint:
