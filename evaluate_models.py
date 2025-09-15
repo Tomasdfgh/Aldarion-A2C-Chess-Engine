@@ -1,172 +1,30 @@
 #!/usr/bin/env python3
 """
-Parallel Model Evaluation Script for Aldarion Chess Engine
+Unified Model Evaluation Script for Aldarion Chess Engine
 
-This script pits two chess models against each other using parallel processing
-to determine which is stronger. Used in the training loop to decide whether 
-to accept a new model or keep the previous best.
-
-Architecture similar to parallel_training_data.py but for competitive games.
+This script uses the same efficient process management as parallel_training_data.py
+to evaluate two chess models against each other. Each process plays multiple games
+sequentially instead of creating one process per game.
 """
 
 import os
 import sys
-import torch
-import chess
 import argparse
 import time
-import multiprocessing as mp
+import pickle
 from datetime import datetime
-from typing import Tuple, Dict, List
-import traceback
+from typing import Dict, List
 
-# Import existing modules
-import model as md
-import MTCS as mt
+# Import unified modules
+from parallel_utils import run_parallel_task_execution, final_gpu_cleanup
+from parallel_workers import evaluation_worker_process
 
 
-def play_competitive_game(white_model_path: str, black_model_path: str, 
-                         num_simulations: int, device_str: str, game_id: int) -> Dict:
+def evaluate_models_unified(old_model_path: str, new_model_path: str, 
+                           num_games: int, num_simulations: int,
+                           cpu_utilization: float = 0.8) -> Dict:
     """
-    Play one competitive game between two models
-    
-    Args:
-        white_model_path: Path to model playing white
-        black_model_path: Path to model playing black  
-        num_simulations: MCTS simulations per move
-        device_str: Device string ('cuda:0', 'cpu', etc.)
-        game_id: Unique game identifier
-    
-    Returns:
-        Dictionary with game results and statistics
-    """
-    start_time = time.time()
-    
-    try:
-        device = torch.device(device_str)
-        
-        # Load both models
-        white_model = md.ChessNet()
-        black_model = md.ChessNet()
-        
-        white_model.to(device)
-        black_model.to(device)
-        
-        # Load weights
-        white_state = torch.load(white_model_path, map_location=device, weights_only=True)
-        black_state = torch.load(black_model_path, map_location=device, weights_only=True)
-        
-        white_model.load_state_dict(white_state)
-        black_model.load_state_dict(black_state)
-        
-        white_model.eval()
-        black_model.eval()
-        
-        # Play the game
-        board = chess.Board()
-        game_history = []
-        move_count = 0
-        
-        while not board.is_game_over() and move_count < 300:  # Early stopping
-            # Select model based on whose turn it is
-            current_model = white_model if board.turn else black_model
-            current_player = "White" if board.turn else "Black"
-            
-            try:
-                # Get best move from model (deterministic for evaluation)
-                best_move, _ = mt.get_best_move(
-                    model=current_model,
-                    board_fen=board.fen(),
-                    num_simulations=num_simulations,
-                    device=device,
-                    game_history=game_history,
-                    temperature=0.0  # Deterministic play for evaluation
-                )
-                
-                if best_move is None:
-                    break
-                
-                # Apply move
-                move_obj = chess.Move.from_uci(best_move)
-                board.push(move_obj)
-                game_history.append(board.copy())
-                move_count += 1
-                
-            except Exception as e:
-                print(f"Game {game_id}: Error during {current_player} move: {e}")
-                break
-        
-        # Determine game result
-        if board.is_checkmate():
-            # Winner gets +1, loser gets -1
-            result = -1.0 if board.turn else 1.0  # If White's turn -> White checkmated -> Black wins
-            result_str = "Black wins" if result == -1.0 else "White wins"
-        elif board.is_stalemate() or board.is_insufficient_material() or \
-             board.is_seventyfive_moves() or board.is_fivefold_repetition():
-            result = 0.0
-            result_str = "Draw"
-        elif move_count >= 300:
-            result = 0.0
-            result_str = "Draw (300-ply limit)"
-        else:
-            result = 0.0
-            result_str = "Draw (unexpected end)"
-        
-        game_time = time.time() - start_time
-        
-        game_result = {
-            'game_id': game_id,
-            'result': result,  # From White's perspective: +1=White wins, 0=Draw, -1=Black wins
-            'result_str': result_str,
-            'move_count': move_count,
-            'game_time_seconds': game_time,
-            'white_model': os.path.basename(white_model_path),
-            'black_model': os.path.basename(black_model_path)
-        }
-        
-        print(f"Game {game_id}: {result_str} in {move_count} moves ({game_time:.1f}s)")
-        
-        # Explicit GPU memory cleanup
-        try:
-            del white_model, black_model
-            if torch.cuda.is_available() and device.type == 'cuda':
-                torch.cuda.empty_cache()
-                torch.cuda.synchronize()
-                print(f"Game {game_id}: GPU memory cleared")
-        except Exception as cleanup_error:
-            print(f"Game {game_id}: Warning - GPU cleanup error: {cleanup_error}")
-        
-        return game_result
-        
-    except Exception as e:
-        print(f"Game {game_id}: Fatal error: {e}")
-        traceback.print_exc()
-        
-        # Cleanup on error
-        try:
-            if 'white_model' in locals():
-                del white_model
-            if 'black_model' in locals():
-                del black_model
-            if torch.cuda.is_available() and 'device' in locals() and device.type == 'cuda':
-                torch.cuda.empty_cache()
-                torch.cuda.synchronize()
-                print(f"Game {game_id}: GPU memory cleared on error")
-        except Exception as cleanup_error:
-            print(f"Game {game_id}: Warning - GPU cleanup error: {cleanup_error}")
-        
-        return {
-            'game_id': game_id,
-            'error': str(e),
-            'game_time_seconds': time.time() - start_time
-        }
-
-
-def evaluate_models_parallel(old_model_path: str, new_model_path: str, 
-                            num_games: int, num_simulations: int,
-                            cpu_utilization: float = 0.8) -> Dict:
-    """
-    Evaluate two models against each other using parallel processing
+    Evaluate two models against each other using unified parallel processing
     
     Args:
         old_model_path: Path to current best model
@@ -176,86 +34,38 @@ def evaluate_models_parallel(old_model_path: str, new_model_path: str,
         cpu_utilization: Target CPU utilization
     
     Returns:
-        Dictionary with evaluation results and statistics
+        Dictionary with evaluation results
     """
-    print("=" * 60)
-    print("PARALLEL MODEL EVALUATION")
-    print("=" * 60)
+    print("="*60)
+    print("UNIFIED MODEL EVALUATION")
+    print("="*60)
+    print(f"Old model: {os.path.basename(old_model_path)}")
+    print(f"New model: {os.path.basename(new_model_path)}")
+    print(f"Games: {num_games}")
+    print(f"Simulations per move: {num_simulations}")
+    print(f"CPU utilization: {cpu_utilization*100:.0f}%")
     
-    # Hardware detection (similar to parallel_training_data.py)
-    if torch.cuda.is_available():
-        num_gpus = torch.cuda.device_count()
-        print(f"Detected {num_gpus} GPU(s)")
-        devices = [f'cuda:{i}' for i in range(num_gpus)]
-    else:
-        print("Using CPU")
-        devices = ['cpu']
+    # Create task configuration
+    task_config = {
+        'total_tasks': num_games,
+        'num_simulations': num_simulations,
+        'old_model_path': old_model_path,
+        'new_model_path': new_model_path,
+        'starting_game_id': 0
+    }
     
-    # Calculate processes
-    cpu_cores = mp.cpu_count()
-    total_processes = max(1, int(cpu_cores * cpu_utilization))
-    processes_per_device = max(1, total_processes // len(devices))
-    
-    print(f"Configuration:")
-    print(f"  Total games: {num_games}")
-    print(f"  CPU cores: {cpu_cores}")
-    print(f"  Target CPU utilization: {cpu_utilization * 100:.0f}%")
-    print(f"  Total processes: {total_processes}")
-    print(f"  Processes per device: {processes_per_device}")
-    
-    # Distribute games across processes
-    # Play equal games as White and Black (swap roles)
-    games_per_process = num_games // total_processes
-    remaining_games = num_games % total_processes
-    
-    process_args = []
-    game_id = 0
-    
-    for device in devices:
-        for process_idx in range(processes_per_device):
-            if game_id >= num_games:
-                break
-            
-            # Calculate games for this process
-            games_for_process = games_per_process
-            if remaining_games > 0:
-                games_for_process += 1
-                remaining_games -= 1
-            
-            if games_for_process == 0:
-                break
-            
-            # Alternate who plays white/black for fairness
-            for local_game in range(games_for_process):
-                if (game_id + local_game) % 2 == 0:
-                    # New model plays White
-                    white_path = new_model_path
-                    black_path = old_model_path
-                else:
-                    # Old model plays White  
-                    white_path = old_model_path
-                    black_path = new_model_path
-                
-                args = (white_path, black_path, num_simulations, device, game_id + local_game)
-                process_args.append(args)
-            
-            game_id += games_for_process
-    
-    print(f"Launching {len(process_args)} games across {total_processes} processes...")
-    print(f"New model plays White in ~50% of games for fair evaluation")
-    
-    # Execute games in parallel
+    # Execute parallel evaluation
     start_time = time.time()
-    
-    with mp.Pool(processes=total_processes) as pool:
-        results = pool.starmap(play_competitive_game, process_args)
-    
-    end_time = time.time()
-    execution_time = end_time - start_time
+    game_results, process_statistics = run_parallel_task_execution(
+        task_config=task_config,
+        worker_function=evaluation_worker_process,
+        cpu_utilization=cpu_utilization
+    )
+    execution_time = time.time() - start_time
     
     # Analyze results
-    successful_games = [r for r in results if 'error' not in r]
-    failed_games = [r for r in results if 'error' in r]
+    successful_games = [r for r in game_results if 'error' not in r]
+    failed_games = [r for r in game_results if 'error' in r]
     
     if len(successful_games) == 0:
         print("❌ No games completed successfully!")
@@ -268,7 +78,7 @@ def evaluate_models_parallel(old_model_path: str, new_model_path: str,
     
     for game in successful_games:
         result = game['result']
-        white_is_new = game['white_model'] == os.path.basename(new_model_path)
+        white_is_new = game['white_is_new']
         
         if result == 1.0:  # White wins
             if white_is_new:
@@ -293,6 +103,10 @@ def evaluate_models_parallel(old_model_path: str, new_model_path: str,
     decisive_games = new_model_wins + old_model_wins
     traditional_win_rate = new_model_wins / decisive_games * 100 if decisive_games > 0 else 0
     
+    # Calculate aggregate statistics from process stats
+    total_processes = len([s for s in process_statistics if 'error' not in s])
+    avg_games_per_process = total_games_played / total_processes if total_processes > 0 else 0
+    
     # Evaluation summary
     print("=" * 60)
     print("EVALUATION COMPLETE")
@@ -300,6 +114,8 @@ def evaluate_models_parallel(old_model_path: str, new_model_path: str,
     print(f"Total execution time: {execution_time:.2f} seconds ({execution_time/60:.1f} minutes)")
     print(f"Games played: {total_games_played}/{num_games}")
     print(f"Failed games: {len(failed_games)}")
+    print(f"Processes used: {total_processes}")
+    print(f"Average games per process: {avg_games_per_process:.1f}")
     
     print(f"\nResults (from new model's perspective):")
     print(f"  New model wins: {new_model_wins} ({new_model_wins/total_games_played*100:.1f}%)")
@@ -312,25 +128,13 @@ def evaluate_models_parallel(old_model_path: str, new_model_path: str,
     print(f"  Traditional win rate: {traditional_win_rate:.1f}% (wins among decisive games)")
     print(f"  New model score: {new_model_score:.1f}/{total_games_played} points")
     
-    avg_game_time = sum(g['game_time_seconds'] for g in successful_games) / len(successful_games)
-    avg_moves = sum(g['move_count'] for g in successful_games) / len(successful_games)
-    print(f"\nGame statistics:")
-    print(f"  Average game time: {avg_game_time:.1f} seconds")
-    print(f"  Average moves per game: {avg_moves:.1f}")
-    print(f"  Games per minute: {total_games_played / (execution_time/60):.1f}")
-    
-    # Final GPU memory cleanup after all evaluation processes complete
-    try:
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-            torch.cuda.synchronize()
-            # Clear all GPU devices
-            for i in range(torch.cuda.device_count()):
-                with torch.cuda.device(i):
-                    torch.cuda.empty_cache()
-            print("🧹 Final evaluation GPU memory cleanup completed")
-    except Exception as cleanup_error:
-        print(f"Warning - Final evaluation GPU cleanup error: {cleanup_error}")
+    if successful_games:
+        avg_game_time = sum(g['game_time_seconds'] for g in successful_games) / len(successful_games)
+        avg_moves = sum(g['move_count'] for g in successful_games) / len(successful_games)
+        print(f"\nGame statistics:")
+        print(f"  Average game time: {avg_game_time:.1f} seconds")
+        print(f"  Average moves per game: {avg_moves:.1f}")
+        print(f"  Games per minute: {total_games_played / (execution_time/60):.1f}")
     
     return {
         'new_model_wins': new_model_wins,
@@ -343,45 +147,90 @@ def evaluate_models_parallel(old_model_path: str, new_model_path: str,
         'new_model_score': new_model_score,
         'execution_time': execution_time,
         'successful_games': successful_games,
-        'failed_games': failed_games
+        'failed_games': failed_games,
+        'process_statistics': process_statistics
     }
+
+
+def save_evaluation_results(results: Dict, old_model_path: str, new_model_path: str, 
+                          output_filename: str = None) -> str:
+    """
+    Save evaluation results and statistics
+    
+    Args:
+        results: Evaluation results dictionary
+        old_model_path: Path to old model
+        new_model_path: Path to new model
+        output_filename: Optional output filename
+    
+    Returns:
+        Filename where data was saved
+    """
+    if output_filename is None:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        old_name = os.path.splitext(os.path.basename(old_model_path))[0]
+        new_name = os.path.splitext(os.path.basename(new_model_path))[0]
+        output_filename = f"evaluation_{old_name}_vs_{new_name}_{timestamp}.pkl"
+    
+    # Create directories if they don't exist
+    os.makedirs("evaluation_results", exist_ok=True)
+    
+    # Generate full path
+    results_path = os.path.join("evaluation_results", output_filename)
+    
+    # Add metadata to results
+    results['metadata'] = {
+        'old_model_path': old_model_path,
+        'new_model_path': new_model_path,
+        'timestamp': datetime.now().isoformat(),
+        'evaluation_type': 'unified_parallel'
+    }
+    
+    # Save results
+    with open(results_path, 'wb') as f:
+        pickle.dump(results, f)
+    
+    print(f"Evaluation results saved to: {results_path}")
+    return results_path
 
 
 def main():
     """Main function with command-line interface"""
     parser = argparse.ArgumentParser(
-        description='Parallel model evaluation for Aldarion Chess Engine',
+        description='Unified Model Evaluation for Aldarion Chess Engine',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Quick evaluation (30 games, 200 sims per move)
-  python3 evaluate_models.py --old_model model_v1.pth --new_model model_v2.pth --num_games 30 --num_simulations 200
+  # Basic evaluation
+  python3 evaluate_models_unified.py --old_model model_v1.pth --new_model model_v2.pth --num_games 30 --num_simulations 200
   
-  # Standard evaluation (100 games, 400 sims per move)  
-  python3 evaluate_models.py --old_model model_weights.pth --new_model model_weights_v5.pth --num_games 100 --num_simulations 400
+  # High-quality evaluation
+  python3 evaluate_models_unified.py --old_model model_weights.pth --new_model model_weights_v5.pth --num_games 100 --num_simulations 400
   
-  # High-quality evaluation (200 games, 800 sims per move)
-  python3 evaluate_models.py --old_model current_best.pth --new_model candidate.pth --num_games 200 --num_simulations 800 --cpu_utilization 0.9
+  # Fast evaluation with reduced CPU usage
+  python3 evaluate_models_unified.py --old_model current_best.pth --new_model candidate.pth --num_games 200 --num_simulations 800 --cpu_utilization 0.5
 
 Notes:
-  - New model win rate >55% typically means the new model is significantly stronger
-  - Games alternate who plays White/Black for fair evaluation
-  - Uses deterministic play (temperature=0) for consistent evaluation
+- Score-based win rate is the primary metric (wins + 0.5*draws)
+- New model win rate >55% typically means the new model is significantly stronger
+- Each process plays multiple games sequentially for better efficiency
         """
     )
     
     parser.add_argument('--old_model', type=str, required=True,
-                        help='Path to current best model')
+                        help='Path to the current best model')
     parser.add_argument('--new_model', type=str, required=True,
-                        help='Path to newly trained model to evaluate')
-    parser.add_argument('--num_games', type=int, default=100,
-                        help='Total number of games to play (default: 100)')
+                        help='Path to the newly trained model to evaluate')
+    parser.add_argument('--num_games', type=int, default=50,
+                        help='Number of games to play (default: 50)')
     parser.add_argument('--num_simulations', type=int, default=200,
                         help='MCTS simulations per move (default: 200)')
-    parser.add_argument('--cpu_utilization', type=float, default=0.8,
-                        help='Target CPU utilization 0.0-1.0 (default: 0.8)')
     parser.add_argument('--win_threshold', type=float, default=55.0,
                         help='Win rate threshold for accepting new model (default: 55.0%)')
+    parser.add_argument('--cpu_utilization', type=float, default=0.8,
+                        help='CPU utilization for parallel processing (default: 0.8)')
+    parser.add_argument('--output', type=str, default=None,
+                        help='Output filename for evaluation results')
     
     args = parser.parse_args()
     
@@ -389,25 +238,33 @@ Notes:
     if not os.path.exists(args.old_model):
         print(f"Error: Old model file not found: {args.old_model}")
         sys.exit(1)
-        
+    
     if not os.path.exists(args.new_model):
         print(f"Error: New model file not found: {args.new_model}")
+        sys.exit(1)
+    
+    if args.num_games <= 0:
+        print("Error: num_games must be positive")
         sys.exit(1)
     
     if not (0.0 <= args.cpu_utilization <= 1.0):
         print("Error: cpu_utilization must be between 0.0 and 1.0")
         sys.exit(1)
     
-    print(f"Evaluating models:")
-    print(f"  Old model: {args.old_model}")
-    print(f"  New model: {args.new_model}")
-    print(f"  Games: {args.num_games}")
-    print(f"  Simulations per move: {args.num_simulations}")
-    print(f"  Win threshold: {args.win_threshold}%")
+    if not (0.0 <= args.win_threshold <= 100.0):
+        print("Error: win_threshold must be between 0.0 and 100.0")
+        sys.exit(1)
     
+    # Create necessary directories
+    os.makedirs("evaluation_results", exist_ok=True)
+    
+    # Run evaluation
     try:
-        # Run evaluation
-        results = evaluate_models_parallel(
+        print(f"  Old model: {args.old_model}")
+        print(f"  New model: {args.new_model}")
+        print(f"  Target: >{args.win_threshold}% score rate for acceptance")
+        
+        results = evaluate_models_unified(
             old_model_path=args.old_model,
             new_model_path=args.new_model,
             num_games=args.num_games,
@@ -416,30 +273,35 @@ Notes:
         )
         
         if 'error' in results:
-            print("❌ Evaluation failed!")
+            print(f"❌ Evaluation failed: {results['error']}")
             sys.exit(1)
         
-        # Make decision based on score rate
+        # Save results
+        results_file = save_evaluation_results(results, args.old_model, args.new_model, args.output)
+        
+        # Determine acceptance/rejection
         score_rate = results['score_rate']
-        if score_rate >= args.win_threshold:
+        if score_rate > args.win_threshold:
             print(f"\n🏆 ACCEPT NEW MODEL!")
             print(f"New model score rate ({score_rate:.1f}%) exceeds threshold ({args.win_threshold}%)")
-            sys.exit(0)  # Success - accept new model
+            sys.exit(0)  # Success code for acceptance
         else:
             print(f"\n💀 REJECT NEW MODEL!")
             print(f"New model score rate ({score_rate:.1f}%) below threshold ({args.win_threshold}%)")
-            sys.exit(1)  # Failure - reject new model
+            sys.exit(1)  # Failure code for rejection
             
     except KeyboardInterrupt:
-        print("\nEvaluation interrupted by user")
+        print(f"\nEvaluation interrupted by user")
         sys.exit(1)
     except Exception as e:
         print(f"Fatal error: {e}")
+        import traceback
         traceback.print_exc()
         sys.exit(1)
 
 
 if __name__ == "__main__":
     # Set multiprocessing start method for compatibility
+    import multiprocessing as mp
     mp.set_start_method('spawn', force=True)
     main()

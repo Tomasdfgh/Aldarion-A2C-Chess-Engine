@@ -173,7 +173,7 @@ def run_single_iteration(args):
         # STEP 1: Generate self-play training data
         selfplay_filename = f"selfplay_data_iter_{args.iteration_number}_{timestamp}.pkl"
         selfplay_command = (
-            f"python3 parallel_training_data.py "
+            f"python3 selfplay_generate_data.py "
             f"--total_games {args.selfplay_games} "
             f"--num_simulations {args.selfplay_simulations} "
             f"--cpu_utilization {args.cpu_utilization} "
@@ -276,10 +276,10 @@ def run_single_iteration(args):
         
         # Clear GPU memory multiple times
         for i in range(3):
-            cleanup_command = "python3 -c \"import torch; torch.cuda.empty_cache() if torch.cuda.is_available() else None; [torch.cuda.empty_cache() for i in range(torch.cuda.device_count()) if torch.cuda.is_available()]; print(f'GPU memory cleared {i+1}/3')\""
+            cleanup_command = "python3 -c \"import torch; torch.cuda.empty_cache() if torch.cuda.is_available() else None; print('GPU memory cleared')\""
             try:
                 result = subprocess.run(cleanup_command, shell=True, check=True, capture_output=True, text=True)
-                print(f"✅ {result.stdout.strip()}")
+                print(f"✅ GPU memory cleared {i+1}/3")
             except Exception as e:
                 print(f"⚠️  GPU cleanup warning: {e}")
             time.sleep(1)
