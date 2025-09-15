@@ -148,15 +148,21 @@ def board_to_game_state_array(board, turn):
 def create_legal_move_mask(board):
 	"""
 	Create a mask for legal moves in 8x8x73 format
-	Returns tensor with 1.0 for legal moves, 0.0 for illegal moves
+	Returns tensor with True for legal moves, False for illegal moves
 	"""
-	mask = torch.zeros(8, 8, 73)
+	mask = torch.zeros(8, 8, 73, dtype=torch.bool)
 	legal_moves = list(board.legal_moves)
+	
+	# Safeguard: Check if position has legal moves (avoid mate/stalemate)
+	if len(legal_moves) == 0:
+		# Game is over - this shouldn't be in training data
+		# Return all-False mask and let caller handle it
+		return mask
 	
 	for move in legal_moves:
 		try:
 			row, col, plane = uci_to_policy_index(str(move))
-			mask[row, col, plane] = 1.0
+			mask[row, col, plane] = True
 		except ValueError:
 			# Skip moves that can't be encoded
 			continue

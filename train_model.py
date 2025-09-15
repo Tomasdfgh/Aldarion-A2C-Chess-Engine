@@ -73,12 +73,31 @@ class ChessTrainingDataset(Dataset):
         
         # Create legal move mask for this position
         board = chess.Board(board_fen)
-        legal_mask = br.create_legal_move_mask(board).flatten()  # Flatten to 4672
+        legal_mask = br.create_legal_move_mask(board).flatten()  # Flatten to 4672, bool type
+        
+        # Safeguard: Skip positions with no legal moves (shouldn't happen in training data)
+        if not legal_mask.any():
+            # This is a terminal position (mate/stalemate) - skip it
+            # Return None to signal this sample should be skipped
+            return None
         
         # Game outcome as value target
         value_target = torch.tensor([game_outcome], dtype=torch.float32)
         
         return board_tensor.float(), policy_vector, legal_mask, value_target
+
+
+def collate_fn(batch):
+    """Custom collate function to handle None values (skipped samples)"""
+    # Filter out None values
+    batch = [item for item in batch if item is not None]
+    
+    if len(batch) == 0:
+        # Return empty batch
+        return torch.empty(0), torch.empty(0), torch.empty(0), torch.empty(0)
+    
+    # Use default collate for non-None items
+    return torch.utils.data.dataloader.default_collate(batch)
 
 
 def load_training_data(data_files: List[str]) -> List[Tuple[str, Dict, float]]:
@@ -147,15 +166,17 @@ def compute_loss(model_output, targets, legal_masks, policy_weight=1.0, value_we
     policy_logits, value_pred = model_output
     target_policy, target_value = targets
     
-    # Apply legal move masking to logits before softmax
+    # Apply legal move masking to logits
     masked_logits = policy_logits.clone()
-    masked_logits[legal_masks == 0] = -float('inf')
+    masked_logits[legal_masks == False] = -1e3  # Mask illegal moves (smaller value)
     
-    # Apply log-softmax for stable cross-entropy computation
-    log_policy_probs = F.log_softmax(masked_logits, dim=1)
+    # Apply softmax to get probabilities
+    policy_probs = F.softmax(masked_logits, dim=1)
     
-    # Policy loss: Cross-entropy between MCTS policy and masked network policy
-    policy_loss = -torch.sum(target_policy * log_policy_probs, dim=1).mean()
+    # Cross-entropy loss: -sum(target * log(prediction))
+    # Add small epsilon to prevent log(0)
+    epsilon = 1e-8
+    policy_loss = -torch.sum(target_policy * torch.log(policy_probs + epsilon), dim=1).mean()
     
     # Value loss: MSE between game outcome and predicted value
     value_loss = nn.MSELoss()(value_pred.squeeze(), target_value.squeeze())
@@ -185,6 +206,10 @@ def train_epoch(model, dataloader, optimizer, device, epoch_num):
     num_batches = 0
     
     for batch_idx, (board_tensors, target_policies, legal_masks, target_values) in enumerate(dataloader):
+        # Skip empty batches (from filtered terminal positions)
+        if len(board_tensors) == 0:
+            continue
+            
         # Move to device
         board_tensors = board_tensors.to(device)
         target_policies = target_policies.to(device)
@@ -245,6 +270,10 @@ def validate_model(model, dataloader, device):
     
     with torch.no_grad():
         for board_tensors, target_policies, legal_masks, target_values in dataloader:
+            # Skip empty batches (from filtered terminal positions)
+            if len(board_tensors) == 0:
+                continue
+                
             # Move to device
             board_tensors = board_tensors.to(device)
             target_policies = target_policies.to(device)
@@ -408,13 +437,14 @@ Examples:
         val_dataset = None
         print(f"Train set: {len(train_dataset)} (no validation)")
     
-    # Create data loaders
+    # Create data loaders with custom collate function
     train_loader = DataLoader(
         train_dataset, 
         batch_size=args.batch_size, 
         shuffle=True,
         num_workers=4,
-        pin_memory=True if device.type == 'cuda' else False
+        pin_memory=True if device.type == 'cuda' else False,
+        collate_fn=collate_fn
     )
     
     val_loader = None
@@ -424,7 +454,8 @@ Examples:
             batch_size=args.batch_size,
             shuffle=False,
             num_workers=4,
-            pin_memory=True if device.type == 'cuda' else False
+            pin_memory=True if device.type == 'cuda' else False,
+            collate_fn=collate_fn
         )
     
     # Initialize model with fixed 4,672-move policy head
