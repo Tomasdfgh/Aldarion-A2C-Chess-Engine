@@ -233,8 +233,8 @@ def get_move_probabilities(root, temperature=1.0):
 		visits.append(child.N)
 		moves.append(child.action)
 	
-	if temperature == 0:
-		# Deterministic - choose most visited
+	if temperature <= 1e-8:
+		# Deterministic - choose most visited (handles temperature == 0 and near-zero)
 		best_idx = np.argmax(visits)
 		for i, move in enumerate(moves):
 			move_probs[move] = 1.0 if i == best_idx else 0.0
@@ -292,7 +292,7 @@ def run_game(model, temperature, num_simulations, device):
 	
 	# Initialize game
 	board = chess.Board()
-	game_history = []
+	game_history = []  # Keep Board objects for NN encoding
 	training_data = []
 	
 	move_count = 0
@@ -318,9 +318,8 @@ def run_game(model, temperature, num_simulations, device):
 		move_probs = get_move_probabilities(root, temperature=1.0)
 		
 		# Store training data with history (previous positions only)
-		# game_history contains FEN strings of previous positions
-		# Current position is separate - encoder will combine them
-		history_fens = game_history[-7:] if len(game_history) >= 7 else game_history[:]
+		# Convert Board objects to FEN strings for storage
+		history_fens = [b.fen() for b in game_history[-7:]] if len(game_history) >= 7 else [b.fen() for b in game_history[:]]
 		
 		training_data.append((board.fen(), history_fens, move_probs.copy()))
 		
@@ -337,7 +336,7 @@ def run_game(model, temperature, num_simulations, device):
 		# Apply move
 		move_obj = chess.Move.from_uci(selected_move)
 		board.push(move_obj)
-		game_history.append(board.fen())
+		game_history.append(board.copy())  # Store Board object, not FEN string
 		
 		move_count += 1
 	

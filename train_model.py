@@ -145,7 +145,7 @@ def load_training_data(data_files: List[str]) -> List[Tuple[str, Dict, float]]:
             if isinstance(data, list) and len(data) > 0:
                 # Check data format
                 sample = data[0]
-                if len(sample) == 3 and isinstance(sample[0], str):
+                if len(sample) == 4 and isinstance(sample[0], str):
                     all_training_data.extend(data)
                     print(f"  Loaded {len(data)} examples from {file_path}")
                 else:

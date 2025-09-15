@@ -180,7 +180,7 @@ def worker_process(gpu_device: str, num_games: int, num_simulations: int,
         model.to(device)
         
         if os.path.exists(model_path):
-            state = torch.load(model_path, map_location=device)
+            state = torch.load(model_path, map_location=device, weights_only=True)
             model.load_state_dict(state)
             model.eval()
             print(f"Process {process_id}: Model loaded successfully on {gpu_device}")
@@ -511,8 +511,8 @@ Examples:
                         help='MCTS simulations per move (default: 100)')
     parser.add_argument('--temperature', type=float, default=0.8,
                         help='Temperature for move selection (default: 0.8)')
-    parser.add_argument('--model_path', type=str, default='model_weights.pth',
-                        help='Path to model weights (default: model_weights.pth)')
+    parser.add_argument('--model_path', type=str, default='model_weights/model_weights.pth',
+                        help='Path to model weights (default: model_weights/model_weights.pth)')
     parser.add_argument('--cpu_utilization', type=float, default=0.90,
                         help='Target CPU utilization 0.0-1.0 (default: 0.90)')
     parser.add_argument('--max_processes_per_gpu', type=int, default=None,
