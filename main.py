@@ -260,7 +260,7 @@ def run_single_iteration(args):
         # Kill any lingering Python processes that might be holding GPU memory
         print("🔪 Killing any lingering Python processes...")
         kill_commands = [
-            "pkill -f 'python.*parallel_training_data'",
+            "pkill -f 'python.*selfplay_generate_data'",
             "pkill -f 'python.*MTCS'", 
             "pkill -f 'python.*model'",
         ]
