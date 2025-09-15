@@ -148,8 +148,7 @@ def simulate(node, model, device, game_history=None):
 	if node.is_terminal():
 		board = chess.Board(node.state)
 		if board.is_checkmate():
-			# Return value from perspective of player to move
-			return -1.0 if board.turn == chess.WHITE else 1.0
+			return -1.0  # side to move is checkmated
 		else:
 			# Draw
 			return 0.0
