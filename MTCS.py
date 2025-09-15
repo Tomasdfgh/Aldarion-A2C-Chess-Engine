@@ -365,7 +365,7 @@ def promote_child_to_root(child_node):
 	# This child becomes the new root with all its accumulated statistics
 	return child_node
 
-def run_game(model, temperature, num_simulations, device, c_puct=1.0):
+def run_game(model, temperature, num_simulations, device, c_puct=1.0, current_game=None, total_games=None, process_id=None):
 	"""
 	Play a full game using MCTS with AlphaZero parameters, collecting training data
 	Returns list of (board_state, history_fens, move_probabilities, game_outcome) tuples
@@ -376,13 +376,21 @@ def run_game(model, temperature, num_simulations, device, c_puct=1.0):
 		num_simulations: Number of MCTS simulations per move
 		device: PyTorch device
 		c_puct: PUCT exploration constant (default: 1.0, typical range: 1.0-2.5 for chess)
+		current_game: Current game number (1-indexed, optional)
+		total_games: Total number of games in this process (optional)
+		process_id: Process identifier (optional)
 	
 	AlphaZero implementation:
 	- Dirichlet noise added to root node during self-play
 	- Temperature = 1 for first 30 moves, then temperature → 0
 	- Training data uses temperature = 1 probabilities
 	"""
-	print("Starting new game...")
+	game_info = ""
+	if current_game is not None and total_games is not None:
+		game_info = f" ({current_game}/{total_games} games)"
+	if process_id is not None:
+		game_info = f" [Process {process_id}]" + game_info
+	print(f"Starting new game...{game_info}")
 	
 	# Initialize game
 	board = chess.Board()
@@ -431,7 +439,7 @@ def run_game(model, temperature, num_simulations, device, c_puct=1.0):
 			print("No legal moves available")
 			break
 		
-		print(f"Selected move: {selected_move} (temp={alphazero_temperature})")
+		print(f"Selected move: {selected_move} (temp={alphazero_temperature}){game_info}")
 		
 		# Apply move
 		move_obj = chess.Move.from_uci(selected_move)
