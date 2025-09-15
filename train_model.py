@@ -31,11 +31,12 @@ import traceback
 # Import existing modules
 import model as md
 import board_reader as br
+import move_encoder as me
 
 
 class ChessTrainingDataset(Dataset):
     """
-    PyTorch Dataset for chess training data
+    PyTorch Dataset for chess training data with fixed 4,672-move vocabulary
     
     Data format: List of (board_fen, move_probabilities, game_outcome) tuples
     - board_fen: FEN string of the position
@@ -45,39 +46,11 @@ class ChessTrainingDataset(Dataset):
     
     def __init__(self, training_data: List[Tuple[str, Dict, float]]):
         self.training_data = training_data
-        
-        # Create move to index mapping (chess has 4672 possible moves in UCI format)
-        self.move_to_index = self._create_move_index_mapping()
-        self.num_moves = len(self.move_to_index)
+        self.move_encoder = me.AlphaZeroMoveEncoder()
+        self.num_moves = 4672  # Fixed AlphaZero vocabulary
         
         print(f"Dataset initialized with {len(training_data)} training examples")
-        print(f"Move vocabulary size: {self.num_moves}")
-    
-    def _create_move_index_mapping(self) -> Dict[str, int]:
-        """
-        Create mapping from UCI move strings to policy vector indices
-        Based on all possible chess moves in UCI notation
-        """
-        moves = set()
-        
-        # Collect all moves from training data
-        for _, move_probs, _ in self.training_data:
-            for move in move_probs.keys():
-                if isinstance(move, chess.Move):
-                    moves.add(move.uci())
-                else:
-                    moves.add(str(move))
-        
-        # Sort for consistent indexing
-        sorted_moves = sorted(list(moves))
-        
-        # Create mapping
-        move_to_index = {}
-        for i, move in enumerate(sorted_moves):
-            move_to_index[move] = i
-            
-        print(f"Found {len(sorted_moves)} unique moves in training data")
-        return move_to_index
+        print(f"Using fixed AlphaZero vocabulary: {self.num_moves} moves")
     
     def __len__(self):
         return len(self.training_data)
@@ -88,16 +61,8 @@ class ChessTrainingDataset(Dataset):
         # Convert board to 119-channel input tensor
         board_tensor = br.board_to_full_alphazero_input(board_fen)
         
-        # Convert move probabilities to policy vector
-        policy_vector = torch.zeros(self.num_moves)
-        for move, prob in move_probs.items():
-            move_str = move.uci() if isinstance(move, chess.Move) else str(move)
-            if move_str in self.move_to_index:
-                policy_vector[self.move_to_index[move_str]] = float(prob)
-        
-        # Normalize policy vector (should already be normalized, but ensure it)
-        if policy_vector.sum() > 0:
-            policy_vector = policy_vector / policy_vector.sum()
+        # Convert move probabilities to fixed 4,672-dimensional policy vector
+        policy_vector = self.move_encoder.encode_policy(move_probs)
         
         # Game outcome as value target
         value_target = torch.tensor([game_outcome], dtype=torch.float32)
@@ -439,12 +404,12 @@ Examples:
             pin_memory=True if device.type == 'cuda' else False
         )
     
-    # Initialize model
+    # Initialize model with fixed 4,672-move policy head
     print("Initializing model...")
     model = md.ChessNet()
     
-    # Update model's policy head to match dataset vocabulary size
-    model.linear3 = nn.Linear(2 * 8 * 8, dataset.num_moves)
+    # Fixed AlphaZero policy head (always 4,672 moves)
+    model.linear3 = nn.Linear(2 * 8 * 8, 4672)
     model = model.to(device)
     
     # Load pretrained weights if available
@@ -460,8 +425,8 @@ Examples:
         try:
             state_dict = torch.load(args.model_path, map_location=device, weights_only=True)
             # Handle potential size mismatch in policy head
-            if 'linear3.weight' in state_dict and state_dict['linear3.weight'].shape[0] != dataset.num_moves:
-                print(f"Policy head size mismatch. Expected {dataset.num_moves}, got {state_dict['linear3.weight'].shape[0]}")
+            if 'linear3.weight' in state_dict and state_dict['linear3.weight'].shape[0] != 4672:
+                print(f"Policy head size mismatch. Expected 4672, got {state_dict['linear3.weight'].shape[0]}")
                 print("Removing policy head from pretrained weights (will be randomly initialized)")
                 del state_dict['linear3.weight']
                 del state_dict['linear3.bias']
