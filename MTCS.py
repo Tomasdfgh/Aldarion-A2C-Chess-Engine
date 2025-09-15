@@ -36,7 +36,7 @@ def calculate_ucb(parent, child, c_puct=1.0):
 	u = c_puct * child.P * math.sqrt(max(1, parent.N)) / (1 + child.N)
 	return q + u
 
-def select_node(root):
+def select_node(root, c_puct=1.0):
 	"""
 	Traverse tree using UCB to find leaf node for expansion
 	Returns the leaf node to expand
@@ -49,7 +49,7 @@ def select_node(root):
 		best_ucb = float('-inf')
 		
 		for child in current.children:
-			ucb_score = calculate_ucb(current, child)
+			ucb_score = calculate_ucb(current, child, c_puct)
 			if ucb_score > best_ucb:
 				best_ucb = ucb_score
 				best_child = child
@@ -152,9 +152,8 @@ def expand_node(node, model, device, game_history=None, add_noise=False):
 		# Convert policy logits to legal move probabilities
 		policy_dict = br.board_to_legal_policy_hash(board, policy_logits.cpu())
 	
-	# Add Dirichlet noise if this is root node (AlphaZero paper)
-	if add_noise:
-		policy_dict = add_dirichlet_noise(policy_dict, alpha=0.3, noise_weight=0.25)
+	# Note: Dirichlet noise is now applied separately in mcts_search before simulations
+	# This keeps the noise application consistent and exactly once per move
 	
 	# Create child nodes for each legal move
 	for move_str in policy_dict.keys():
@@ -236,22 +235,40 @@ def get_alphazero_temperature(move_number):
 	"""
 	return 1.0 if move_number < 30 else 0.0
 
-def mcts_search(root, model, num_simulations, device, game_history=None, add_root_noise=False):
+def mcts_search(root, model, num_simulations, device, game_history=None, add_root_noise=False, c_puct=1.0):
 	"""
 	Run MCTS for num_simulations iterations
 	Returns root node with updated statistics
 	"""
+	# Expand root and apply Dirichlet noise exactly once before simulations (AlphaZero paper)
+	if not root.is_expanded and not root.is_terminal():
+		_, _ = expand_node(root, model, device, game_history, add_noise=False)  # Expand without noise first
+		
+		# Apply Dirichlet noise to root's children priors exactly once
+		if add_root_noise and len(root.children) > 0:
+			# Create policy dict from children's priors
+			policy_dict = {}
+			for child in root.children:
+				policy_dict[child.action] = child.P
+			
+			# Apply noise
+			noisy_policy = add_dirichlet_noise(policy_dict, alpha=0.3, noise_weight=0.25)
+			
+			# Update children's priors with noisy values
+			for child in root.children:
+				child.P = noisy_policy[child.action]
+			
+			print("Applied Dirichlet noise to root")
+	
+	# Run MCTS simulations
 	for i in range(num_simulations):
 		# Selection: traverse tree to leaf
-		leaf = select_node(root)
+		leaf = select_node(root, c_puct)
 		
 		# Expansion and Simulation
 		if not leaf.is_terminal():
-			# Add Dirichlet noise only to root node during self-play
-			add_noise = add_root_noise and (leaf == root)
-			expanded_node, value = expand_node(leaf, model, device, game_history, add_noise)
-			# Use value from expanded leaf - do NOT jump to children[0]
-			# The expand_node already evaluated the leaf with the neural network
+			# No noise needed - already applied to root before simulations
+			expanded_node, value = expand_node(leaf, model, device, game_history, add_noise=False)
 		else:
 			# Terminal node
 			value = simulate(leaf, model, device, game_history)
@@ -301,11 +318,12 @@ def get_move_probabilities(root, temperature=1.0):
 def select_move(root, temperature=1.0):
 	"""
 	Select move based on MCTS visit counts and temperature
+	Returns tuple of (selected_move, selected_child_node) for subtree reuse
 	"""
 	move_probs = get_move_probabilities(root, temperature)
 	
 	if not move_probs:
-		return None
+		return None, None
 	
 	moves = list(move_probs.keys())
 	probs = list(move_probs.values())
@@ -319,12 +337,41 @@ def select_move(root, temperature=1.0):
 	
 	# Sample from probability distribution
 	selected_move = np.random.choice(moves, p=probs)
-	return selected_move
+	
+	# Find the corresponding child node for subtree reuse
+	selected_child = None
+	for child in root.children:
+		if child.action == selected_move:
+			selected_child = child
+			break
+	
+	return selected_move, selected_child
 
-def run_game(model, temperature, num_simulations, device):
+def promote_child_to_root(child_node):
+	"""
+	Promote a child node to be the new root for subtree reuse
+	Detaches it from parent and clears parent reference
+	"""
+	if child_node is None:
+		return None
+	
+	# Detach from parent
+	child_node.parent = None
+	
+	# This child becomes the new root with all its accumulated statistics
+	return child_node
+
+def run_game(model, temperature, num_simulations, device, c_puct=1.0):
 	"""
 	Play a full game using MCTS with AlphaZero parameters, collecting training data
 	Returns list of (board_state, history_fens, move_probabilities, game_outcome) tuples
+	
+	Args:
+		model: Neural network model
+		temperature: Base temperature for move selection
+		num_simulations: Number of MCTS simulations per move
+		device: PyTorch device
+		c_puct: PUCT exploration constant (default: 1.0, typical range: 1.0-2.5 for chess)
 	
 	AlphaZero implementation:
 	- Dirichlet noise added to root node during self-play
@@ -339,23 +386,28 @@ def run_game(model, temperature, num_simulations, device):
 	training_data = []
 	
 	move_count = 0
+	root = None  # Will be created or reused each iteration
 	
 	while not board.is_game_over() and move_count < 300:  # Early stopping at 300 plies
 		print(f"Move {move_count + 1}, {'White' if board.turn else 'Black'} to move")
 		
-		# Create root node for current position
-		root = MTCSNode(
-			team=board.turn,
-			state=board.fen(),
-			action=None,
-			n=0,
-			w=0.0,
-			q=0.0,
-			p=1.0
-		)
+		# Create root node for current position (only if no subtree to reuse)
+		if root is None:
+			root = MTCSNode(
+				team=board.turn,
+				state=board.fen(),
+				action=None,
+				n=0,
+				w=0.0,
+				q=0.0,
+				p=1.0
+			)
+			print("Created fresh MCTS root")
+		else:
+			print(f"Reusing MCTS subtree (N={root.N}, children={len(root.children)})")
 		
 		# Run MCTS with Dirichlet noise at root (AlphaZero self-play)
-		root = mcts_search(root, model, num_simulations, device, game_history, add_root_noise=True)
+		root = mcts_search(root, model, num_simulations, device, game_history, add_root_noise=True, c_puct=c_puct)
 		
 		# Get move probabilities for training data (always use temperature=1 for training data)
 		move_probs = get_move_probabilities(root, temperature=1.0)
@@ -368,7 +420,7 @@ def run_game(model, temperature, num_simulations, device):
 		
 		# Select and make move using AlphaZero temperature schedule
 		alphazero_temperature = get_alphazero_temperature(move_count)
-		selected_move = select_move(root, alphazero_temperature)
+		selected_move, selected_child = select_move(root, alphazero_temperature)
 		
 		if selected_move is None:
 			print("No legal moves available")
@@ -380,6 +432,9 @@ def run_game(model, temperature, num_simulations, device):
 		move_obj = chess.Move.from_uci(selected_move)
 		board.push(move_obj)
 		game_history.append(board.copy())  # Store Board object, not FEN string
+		
+		# Promote selected child to new root for subtree reuse (AlphaZero optimization)
+		root = promote_child_to_root(selected_child)
 		
 		move_count += 1
 	
@@ -417,7 +472,7 @@ def run_game(model, temperature, num_simulations, device):
 	
 	return final_training_data
 
-def get_best_move(model, board_fen, num_simulations, device, game_history=None, temperature=0.0):
+def get_best_move(model, board_fen, num_simulations, device, game_history=None, temperature=0.0, c_puct=1.0):
 	"""
 	Get the best move for a given position using MCTS
 	
@@ -428,6 +483,7 @@ def get_best_move(model, board_fen, num_simulations, device, game_history=None, 
 		device: PyTorch device
 		game_history: Optional list of chess.Board objects for history
 		temperature: Temperature for move selection (0.0 = deterministic)
+		c_puct: PUCT exploration constant (default: 1.0, typical range: 1.0-2.5 for chess)
 	
 	Returns:
 		tuple: (best_move_uci, move_probabilities_dict)
@@ -445,7 +501,7 @@ def get_best_move(model, board_fen, num_simulations, device, game_history=None, 
 	)
 	
 	# Run MCTS (no noise for evaluation, only for self-play training)
-	root = mcts_search(root, model, num_simulations, device, game_history, add_root_noise=False)
+	root = mcts_search(root, model, num_simulations, device, game_history, add_root_noise=False, c_puct=c_puct)
 	
 	# Get move probabilities
 	move_probs = get_move_probabilities(root, temperature)
@@ -457,6 +513,6 @@ def get_best_move(model, board_fen, num_simulations, device, game_history=None, 
 		best_move = best_child.action
 	else:
 		# Sample from distribution
-		best_move = select_move(root, temperature)
+		best_move, _ = select_move(root, temperature)  # Ignore child node for evaluation
 	
 	return best_move, move_probs
