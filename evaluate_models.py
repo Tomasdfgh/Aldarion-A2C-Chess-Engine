@@ -110,13 +110,13 @@ def evaluate_models(old_model_path, new_model_path, num_games=100, num_simulatio
     new_model.to(device)
     
     if os.path.exists(old_model_path):
-        old_state = torch.load(old_model_path, map_location=device, weights_only=True)
+        old_state = torch.load(old_model_path, map_location=device)
         old_model.load_state_dict(old_state)
     else:
         print(f"Warning: Old model {old_model_path} not found. Using random weights.")
     
     if os.path.exists(new_model_path):
-        new_state = torch.load(new_model_path, map_location=device, weights_only=True)
+        new_state = torch.load(new_model_path, map_location=device)
         new_model.load_state_dict(new_state)
     else:
         print(f"Error: New model {new_model_path} not found!")
