@@ -212,10 +212,8 @@ def mcts_search(root, model, num_simulations, device, game_history=None, add_roo
 			# Add Dirichlet noise only to root node during self-play
 			add_noise = add_root_noise and (leaf == root)
 			expanded_node, value = expand_node(leaf, model, device, game_history, add_noise)
-			if len(expanded_node.children) > 0:
-				# If we expanded, select first child for simulation
-				leaf = expanded_node.children[0]
-			value = simulate(leaf, model, device, game_history)
+			# Use value from expanded leaf - do NOT jump to children[0]
+			# The expand_node already evaluated the leaf with the neural network
 		else:
 			# Terminal node
 			value = simulate(leaf, model, device, game_history)

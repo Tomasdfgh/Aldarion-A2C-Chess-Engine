@@ -213,7 +213,7 @@ def worker_process(gpu_device: str, num_games: int, num_simulations: int,
                 
                 # Extract game outcome from last training example
                 if training_data:
-                    outcome = training_data[-1][2]  # (board_state, policy, outcome)
+                    outcome = training_data[-1][3]  # (board_fen, history_fens, move_probs, outcome)
                     game_outcomes.append(outcome)
                 
                 game_time = time.time() - game_start_time
