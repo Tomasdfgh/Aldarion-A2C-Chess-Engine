@@ -74,7 +74,7 @@ if __name__ == "__main__":
     import argparse
     from datetime import datetime
     import glob
-    
+    '''
     def run_command(command, description):
         """Run a subprocess command with error handling"""
         print(f"\n{'='*60}")
@@ -319,3 +319,4 @@ Examples:
     
     # Run the main training loop
     main_training_loop()
+    '''

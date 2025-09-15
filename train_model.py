@@ -606,7 +606,7 @@ Examples:
     val_metrics_history = []
     best_val_loss = float('inf')
     patience_counter = 0
-    patience = 5  # Early stopping patience
+    patience = 10  # Early stopping patience
     
     for epoch in range(start_epoch + 1, start_epoch + args.epochs + 1):
         print(f"\nEpoch {epoch}/{start_epoch + args.epochs}")
