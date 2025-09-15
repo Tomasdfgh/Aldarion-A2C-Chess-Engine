@@ -1,0 +1,7 @@
+# Large files to ignore
+model_weights/*.pth
+training_data/*.pkl
+training_data_stats/*.pkl
+training_data_stats/*.txt
+__pycache__/
+*.pyc

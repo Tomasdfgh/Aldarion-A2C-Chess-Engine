@@ -230,10 +230,13 @@ def backpropagate(node, value):
 def get_alphazero_temperature(move_number):
 	"""
 	Get temperature according to AlphaZero paper:
-	- Temperature = 1 for first 30 moves (exploration)
-	- Temperature → 0 after move 30 (exploitation)
+	- Temperature = 1.0 for first 30 moves (exploration)
+	- Temperature → 0.0 after move 30 (exploitation)
+	
+	Args:
+		move_number: Chess move number (not plies), starts from 1
 	"""
-	return 1.0 if move_number < 30 else 0.0
+	return 1.0 if move_number <= 30 else 0.0
 
 def mcts_search(root, model, num_simulations, device, game_history=None, add_root_noise=False, c_puct=1.0):
 	"""
@@ -420,7 +423,8 @@ def run_game(model, temperature, num_simulations, device, c_puct=1.0):
 		training_data.append((board.fen(), history_fens, move_probs.copy()))
 		
 		# Select and make move using AlphaZero temperature schedule
-		alphazero_temperature = get_alphazero_temperature(move_count)
+		# Use fullmove_number to count actual moves (not plies)
+		alphazero_temperature = get_alphazero_temperature(board.fullmove_number)
 		selected_move, selected_child = select_move(root, alphazero_temperature)
 		
 		if selected_move is None:
