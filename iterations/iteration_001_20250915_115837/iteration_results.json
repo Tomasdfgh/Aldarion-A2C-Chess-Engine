@@ -1,0 +1,45 @@
+{
+  "iteration_number": 1,
+  "timestamp": "20250915_115837",
+  "iteration_directory": "iterations/iteration_001_20250915_115837",
+  "parameters": {
+    "selfplay_games": 60,
+    "selfplay_simulations": 20,
+    "training_epochs": 15,
+    "training_batch_size": 32,
+    "training_lr": 0.2,
+    "eval_games": 50,
+    "eval_simulations": 200,
+    "win_threshold": 55.0,
+    "cpu_utilization": 0.85
+  },
+  "steps": {
+    "selfplay": {
+      "success": true,
+      "return_code": 0,
+      "duration_seconds": 532.5046923160553,
+      "command": "python3 parallel_training_data.py --total_games 60 --num_simulations 20 --cpu_utilization 0.85 --model_path model_weights/model_weights.pth --output selfplay_data_iter_1_20250915_115837.pkl",
+      "output_file": "training_data/selfplay_data_iter_1_20250915_115837.pkl"
+    },
+    "training": {
+      "success": true,
+      "return_code": 0,
+      "duration_seconds": 230.080087184906,
+      "command": "python3 train_model.py --data selfplay_data_iter_1_20250915_115837.pkl --epochs 15 --batch_size 32 --lr 0.2 --model_path model_weights/model_weights.pth --output_dir model_weights"
+    },
+    "evaluation": {
+      "success": false,
+      "return_code": 1,
+      "duration_seconds": 584.0474288463593,
+      "command": "python3 evaluate_models.py --old_model model_weights/model_weights.pth --new_model model_weights/new_model_iter_1_20250915_115837.pth --num_games 50 --num_simulations 200 --win_threshold 55.0 --cpu_utilization 0.85",
+      "new_model_accepted": false
+    }
+  },
+  "champion_changed": false,
+  "success": true,
+  "current_best_model": "model_weights/model_weights.pth",
+  "new_model_path": "model_weights/new_model_iter_1_20250915_115837.pth",
+  "rejected_model": "model_weights/new_model_iter_1_20250915_115837.pth",
+  "total_duration_seconds": 1346.8260462284088,
+  "total_duration_minutes": 22.44710077047348
+}
