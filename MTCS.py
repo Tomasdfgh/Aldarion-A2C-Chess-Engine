@@ -288,7 +288,7 @@ def select_move(root, temperature=1.0):
 def run_game(model, temperature, num_simulations, device):
 	"""
 	Play a full game using MCTS with AlphaZero parameters, collecting training data
-	Returns list of (board_state, move_probabilities, game_outcome) tuples
+	Returns list of (board_state, history_fens, move_probabilities, game_outcome) tuples
 	
 	AlphaZero implementation:
 	- Dirichlet noise added to root node during self-play
@@ -324,8 +324,14 @@ def run_game(model, temperature, num_simulations, device):
 		# Get move probabilities for training data (always use temperature=1 for training data)
 		move_probs = get_move_probabilities(root, temperature=1.0)
 		
-		# Store training data (board state and MCTS probabilities)
-		training_data.append((board.fen(), move_probs.copy()))
+		# Store training data with 8-move history (current + 7 previous)
+		# Create history list: most recent 8 positions (current + 7 previous)
+		history_fens = game_history[-7:] if len(game_history) >= 7 else game_history[:]
+		# Pad with current position if we don't have enough history
+		while len(history_fens) < 8:
+			history_fens.insert(0, board.fen())
+		
+		training_data.append((board.fen(), history_fens, move_probs.copy()))
 		
 		# Select and make move using AlphaZero temperature schedule
 		alphazero_temperature = get_alphazero_temperature(move_count)
@@ -360,7 +366,7 @@ def run_game(model, temperature, num_simulations, device):
 	
 	# Convert training data to final format with game outcomes
 	final_training_data = []
-	for i, (board_state, move_probs) in enumerate(training_data):
+	for i, (board_state, history_fens, move_probs) in enumerate(training_data):
 		# Outcome from perspective of player who made the move
 		player_turn = chess.Board(board_state).turn
 		if player_turn:  # White
@@ -368,7 +374,7 @@ def run_game(model, temperature, num_simulations, device):
 		else:  # Black  
 			outcome = -game_outcome
 		
-		final_training_data.append((board_state, move_probs, outcome))
+		final_training_data.append((board_state, history_fens, move_probs, outcome))
 	
 	print(f"Game completed in {move_count} moves")
 	print(f"Generated {len(final_training_data)} training examples")

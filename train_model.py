@@ -38,13 +38,14 @@ class ChessTrainingDataset(Dataset):
     """
     PyTorch Dataset for chess training data with fixed 4,672-move vocabulary
     
-    Data format: List of (board_fen, move_probabilities, game_outcome) tuples
-    - board_fen: FEN string of the position
+    Data format: List of (board_fen, history_fens, move_probabilities, game_outcome) tuples
+    - board_fen: FEN string of the current position
+    - history_fens: List of 8 FEN strings (current + 7 previous positions)
     - move_probabilities: Dict mapping chess.Move -> float probability  
     - game_outcome: Float value (-1 to 1, from perspective of player to move)
     """
     
-    def __init__(self, training_data: List[Tuple[str, Dict, float]]):
+    def __init__(self, training_data: List[Tuple[str, List[str], Dict, float]]):
         self.training_data = training_data
         self.num_moves = 4672  # AlphaZero 8×8×73 = 4,672 moves
         
@@ -55,10 +56,16 @@ class ChessTrainingDataset(Dataset):
         return len(self.training_data)
     
     def __getitem__(self, idx):
-        board_fen, move_probs, game_outcome = self.training_data[idx]
+        board_fen, history_fens, move_probs, game_outcome = self.training_data[idx]
         
-        # Convert board to 119-channel input tensor
-        board_tensor = br.board_to_full_alphazero_input(board_fen)
+        # Convert board history list to chess.Board objects for board_reader
+        game_history = []
+        for fen in history_fens[:-1]:  # All except current (last) position
+            game_history.append(chess.Board(fen))
+        
+        # Convert current board with history to 119-channel input tensor
+        current_board = chess.Board(board_fen)
+        board_tensor = br.board_to_full_alphazero_input(current_board, game_history)
         
         # Convert move probabilities to 4,672-dimensional policy vector
         policy_vector = torch.zeros(4672, dtype=torch.float32)
@@ -185,9 +192,6 @@ def compute_loss(model_output, targets, legal_masks, policy_weight=1.0, value_we
     # KL divergence: sum(target * (log(target) - log(pred)))
     # For cross-entropy, we just need the -sum(target * log(pred)) part
     policy_loss = -(normalized_target * log_probs).sum(dim=1).mean()
-    
-    # Clamp loss to reasonable range to prevent explosion
-    policy_loss = torch.clamp(policy_loss, 0.0, 100.0)
     
     # Value loss: MSE between game outcome and predicted value
     value_loss = nn.MSELoss()(value_pred.squeeze(), target_value.squeeze())
