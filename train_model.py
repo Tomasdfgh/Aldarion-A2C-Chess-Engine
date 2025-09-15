@@ -72,7 +72,7 @@ class ChessTrainingDataset(Dataset):
         for move, prob in move_probs.items():
             try:
                 r, c, pl = br.uci_to_policy_index(str(move))
-                idx = (r * 73) + pl + (c * 73 * 8)  # 8×8×73 flattening
+                idx = (r * 8 + c) * 73 + pl  # C-order flattening of (8, 8, 73)
                 policy_vector[idx] = float(prob)
             except:
                 # Skip invalid moves
