@@ -171,10 +171,23 @@ def compute_loss(model_output, targets, legal_masks, policy_weight=1.0, value_we
     policy_logits, value_pred = model_output
     target_policy, target_value = targets
     
-    # Apply legal move masking to logits (more stable approach)
-    masked_logits = policy_logits.masked_fill(~legal_masks.bool(), float("-inf"))
-    logp = F.log_softmax(masked_logits, dim=1)  # More stable than softmax+log
-    policy_loss = -(target_policy * logp).sum(1).mean()
+    # Simple approach: just mask with reasonable negative value and use standard cross-entropy
+    masked_logits = policy_logits.clone()
+    masked_logits[~legal_masks.bool()] = -100.0  # Large enough to be ignored
+    
+    # Use KL divergence which handles probability distributions well
+    log_probs = F.log_softmax(masked_logits, dim=1)
+    
+    # Ensure target is valid probability distribution
+    target_sum = target_policy.sum(dim=1, keepdim=True)
+    normalized_target = target_policy / (target_sum + 1e-8)
+    
+    # KL divergence: sum(target * (log(target) - log(pred)))
+    # For cross-entropy, we just need the -sum(target * log(pred)) part
+    policy_loss = -(normalized_target * log_probs).sum(dim=1).mean()
+    
+    # Clamp loss to reasonable range to prevent explosion
+    policy_loss = torch.clamp(policy_loss, 0.0, 100.0)
     
     # Value loss: MSE between game outcome and predicted value
     value_loss = nn.MSELoss()(value_pred.squeeze(), target_value.squeeze())
