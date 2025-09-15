@@ -1,0 +1,126 @@
+============================================================
+DETAILED STATISTICS SUMMARY
+============================================================
+Overall Performance:
+  Total games: 60
+  Total training examples: 17740
+  Total execution time: 225.3s (3.8 minutes)
+  Average examples per game: 295.7
+
+Per-Process Breakdown:
+  Process 0 (cuda:0):
+    Games: 3, Examples: 900
+    Time: 205.0s, Rate: 0.9 games/min
+    Outcomes: W:0 B:0 D:3
+  Process 1 (cuda:0):
+    Games: 3, Examples: 886
+    Time: 216.8s, Rate: 0.8 games/min
+    Outcomes: W:0 B:0 D:3
+  Process 2 (cuda:0):
+    Games: 2, Examples: 600
+    Time: 156.1s, Rate: 0.8 games/min
+    Outcomes: W:0 B:0 D:2
+  Process 3 (cuda:0):
+    Games: 2, Examples: 600
+    Time: 186.1s, Rate: 0.6 games/min
+    Outcomes: W:0 B:0 D:2
+  Process 4 (cuda:0):
+    Games: 2, Examples: 600
+    Time: 187.9s, Rate: 0.6 games/min
+    Outcomes: W:0 B:0 D:2
+  Process 5 (cuda:0):
+    Games: 2, Examples: 590
+    Time: 184.1s, Rate: 0.7 games/min
+    Outcomes: W:0 B:0 D:2
+  Process 6 (cuda:0):
+    Games: 2, Examples: 600
+    Time: 177.3s, Rate: 0.7 games/min
+    Outcomes: W:0 B:0 D:2
+  Process 7 (cuda:0):
+    Games: 2, Examples: 600
+    Time: 181.8s, Rate: 0.7 games/min
+    Outcomes: W:0 B:0 D:2
+  Process 8 (cuda:0):
+    Games: 2, Examples: 600
+    Time: 172.9s, Rate: 0.7 games/min
+    Outcomes: W:0 B:0 D:2
+  Process 9 (cuda:0):
+    Games: 2, Examples: 550
+    Time: 172.8s, Rate: 0.7 games/min
+    Outcomes: W:0 B:0 D:2
+  Process 10 (cuda:0):
+    Games: 2, Examples: 600
+    Time: 185.6s, Rate: 0.6 games/min
+    Outcomes: W:0 B:0 D:2
+  Process 11 (cuda:0):
+    Games: 2, Examples: 600
+    Time: 170.6s, Rate: 0.7 games/min
+    Outcomes: W:0 B:0 D:2
+  Process 12 (cuda:0):
+    Games: 2, Examples: 547
+    Time: 182.8s, Rate: 0.7 games/min
+    Outcomes: W:0 B:0 D:2
+  Process 13 (cuda:0):
+    Games: 2, Examples: 600
+    Time: 182.6s, Rate: 0.7 games/min
+    Outcomes: W:0 B:0 D:2
+  Process 14 (cuda:1):
+    Games: 3, Examples: 900
+    Time: 225.3s, Rate: 0.8 games/min
+    Outcomes: W:0 B:0 D:3
+  Process 15 (cuda:1):
+    Games: 3, Examples: 892
+    Time: 225.2s, Rate: 0.8 games/min
+    Outcomes: W:0 B:0 D:3
+  Process 16 (cuda:1):
+    Games: 2, Examples: 600
+    Time: 184.7s, Rate: 0.6 games/min
+    Outcomes: W:0 B:0 D:2
+  Process 17 (cuda:1):
+    Games: 2, Examples: 600
+    Time: 184.6s, Rate: 0.7 games/min
+    Outcomes: W:0 B:0 D:2
+  Process 18 (cuda:1):
+    Games: 2, Examples: 600
+    Time: 166.0s, Rate: 0.7 games/min
+    Outcomes: W:0 B:0 D:2
+  Process 19 (cuda:1):
+    Games: 2, Examples: 534
+    Time: 169.3s, Rate: 0.7 games/min
+    Outcomes: W:0 B:0 D:2
+  Process 20 (cuda:1):
+    Games: 2, Examples: 600
+    Time: 186.3s, Rate: 0.6 games/min
+    Outcomes: W:0 B:0 D:2
+  Process 21 (cuda:1):
+    Games: 2, Examples: 585
+    Time: 178.9s, Rate: 0.7 games/min
+    Outcomes: W:0 B:0 D:2
+  Process 22 (cuda:1):
+    Games: 2, Examples: 600
+    Time: 186.7s, Rate: 0.6 games/min
+    Outcomes: W:0 B:0 D:2
+  Process 23 (cuda:1):
+    Games: 2, Examples: 600
+    Time: 161.0s, Rate: 0.7 games/min
+    Outcomes: W:0 B:0 D:2
+  Process 24 (cuda:1):
+    Games: 2, Examples: 600
+    Time: 182.8s, Rate: 0.7 games/min
+    Outcomes: W:0 B:0 D:2
+  Process 25 (cuda:1):
+    Games: 2, Examples: 600
+    Time: 186.2s, Rate: 0.6 games/min
+    Outcomes: W:0 B:0 D:2
+  Process 26 (cuda:1):
+    Games: 2, Examples: 600
+    Time: 183.8s, Rate: 0.7 games/min
+    Outcomes: W:0 B:0 D:2
+  Process 27 (cuda:1):
+    Games: 2, Examples: 556
+    Time: 170.4s, Rate: 0.7 games/min
+    Outcomes: W:0 B:0 D:2
+
+Hardware Utilization:
+  cuda:0: 14 processes, 30 games, 8873 examples
+  cuda:1: 14 processes, 30 games, 8867 examples

@@ -58,6 +58,47 @@ def select_node(root):
 	
 	return current
 
+def build_leaf_history(node, original_game_history, max_history=7):
+	"""
+	Build correct history for a leaf node by combining original game history 
+	with the MCTS tree path leading to this node.
+	
+	Args:
+		node: The leaf node to build history for
+		original_game_history: List of chess.Board objects from actual game
+		max_history: Maximum number of previous positions to include
+	
+	Returns:
+		List of chess.Board objects representing the last max_history positions
+	"""
+	# Collect path from leaf back to root (excluding the leaf itself)
+	mcts_path_fens = []
+	current = node.parent
+	
+	while current is not None:
+		mcts_path_fens.append(current.state)
+		current = current.parent
+	
+	# Reverse to get chronological order (root → ... → parent of leaf)
+	mcts_path_fens.reverse()
+	
+	# Combine original game history with MCTS path
+	# Original game history (already Board objects) + MCTS path (FEN strings)
+	combined_history = []
+	
+	# Add original game history
+	combined_history.extend(original_game_history)
+	
+	# Add MCTS path (convert FEN strings to Board objects)
+	for fen in mcts_path_fens:
+		combined_history.append(chess.Board(fen))
+	
+	# Take last max_history positions
+	if len(combined_history) > max_history:
+		combined_history = combined_history[-max_history:]
+	
+	return combined_history
+
 def add_dirichlet_noise(policy_dict, alpha=0.3, noise_weight=0.25):
 	"""
 	Add Dirichlet noise to policy probabilities (AlphaZero paper)
@@ -95,11 +136,12 @@ def expand_node(node, model, device, game_history=None, add_noise=False):
 	
 	# Get neural network evaluation
 	with torch.no_grad():
-		# Convert board to input format
+		# Build correct history for this leaf node
 		if game_history is None:
 			game_history = []
 		
-		input_tensor = br.board_to_full_alphazero_input(board, game_history)
+		leaf_history = build_leaf_history(node, game_history)
+		input_tensor = br.board_to_full_alphazero_input(board, leaf_history)
 		input_tensor = input_tensor.unsqueeze(0).float().to(device)
 		
 		# Get model predictions
@@ -159,7 +201,8 @@ def simulate(node, model, device, game_history=None):
 			game_history = []
 		
 		board = chess.Board(node.state)
-		input_tensor = br.board_to_full_alphazero_input(board, game_history)
+		leaf_history = build_leaf_history(node, game_history)
+		input_tensor = br.board_to_full_alphazero_input(board, leaf_history)
 		input_tensor = input_tensor.unsqueeze(0).float().to(device)
 		
 		_, value = model(input_tensor)
@@ -297,7 +340,7 @@ def run_game(model, temperature, num_simulations, device):
 	
 	move_count = 0
 	
-	while not board.is_game_over():
+	while not board.is_game_over() and move_count < 300:  # Early stopping at 300 plies
 		print(f"Move {move_count + 1}, {'White' if board.turn else 'Black'} to move")
 		
 		# Create root node for current position
@@ -349,8 +392,11 @@ def run_game(model, temperature, num_simulations, device):
 	elif board.is_stalemate() or board.is_insufficient_material() or board.is_seventyfive_moves() or board.is_fivefold_repetition():
 		game_outcome = 0  # Draw
 		print("Game over: Draw")
+	elif move_count >= 300:
+		game_outcome = 0  # Early stopping - treat as draw
+		print("Game over: 300-ply limit reached (Draw)")
 	else:
-		# This should not happen if game loop only continues while not board.is_game_over()
+		# This should not happen if game loop only continues while conditions are met
 		game_outcome = 0  # Fallback draw
 		print("Game over: Unexpected end condition")
 	
