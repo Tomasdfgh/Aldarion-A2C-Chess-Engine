@@ -400,7 +400,7 @@ def run_game(model, temperature, num_simulations, device, c_puct=1.0, current_ga
 	move_count = 0
 	root = None  # Will be created or reused each iteration
 	
-	while not board.is_game_over() and move_count < 300:  # Early stopping at 300 plies
+	while not board.is_game_over() and move_count < 600:  # Early stopping at 600 plies
 		print(f"Move {move_count + 1}, {'White' if board.turn else 'Black'} to move")
 		
 		# Create root node for current position (only if no subtree to reuse)
@@ -460,9 +460,9 @@ def run_game(model, temperature, num_simulations, device, c_puct=1.0, current_ga
 	elif board.is_stalemate() or board.is_insufficient_material() or board.is_seventyfive_moves() or board.is_fivefold_repetition():
 		game_outcome = 0  # Draw
 		print("Game over: Draw")
-	elif move_count >= 300:
+	elif move_count >= 600:
 		game_outcome = 0  # Early stopping - treat as draw
-		print("Game over: 300-ply limit reached (Draw)")
+		print("Game over: 600-ply limit reached (Draw)")
 	else:
 		# This should not happen if game loop only continues while conditions are met
 		game_outcome = 0  # Fallback draw
