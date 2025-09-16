@@ -356,7 +356,7 @@ def play_single_evaluation_game(white_model, black_model, num_simulations: int, 
         game_history = []
         move_count = 0
         
-        while not board.is_game_over() and move_count < 300:  # Early stopping
+        while not board.is_game_over() and move_count < 600:  # Early stopping
             # Select model based on whose turn it is
             current_model = white_model if board.turn else black_model
             current_player = "White" if board.turn else "Black"
@@ -394,9 +394,9 @@ def play_single_evaluation_game(white_model, black_model, num_simulations: int, 
              board.is_seventyfive_moves() or board.is_fivefold_repetition():
             result = 0.0
             result_str = "Draw"
-        elif move_count >= 300:
+        elif move_count >= 600:
             result = 0.0
-            result_str = "Draw (300-ply limit)"
+            result_str = "Draw (600-ply limit)"
         else:
             result = 0.0
             result_str = "Draw (unexpected end)"
