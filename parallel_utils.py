@@ -182,7 +182,7 @@ def final_gpu_cleanup():
             for i in range(torch.cuda.device_count()):
                 with torch.cuda.device(i):
                     torch.cuda.empty_cache()
-            print("🧹 Final GPU memory cleanup completed")
+            print("Final GPU memory cleanup completed")
     except Exception as cleanup_error:
         print(f"Warning - Final GPU cleanup error: {cleanup_error}")
 
