@@ -46,7 +46,7 @@ def analyze_stats_file(filepath):
         print(f"  Timestamp: {command_info.get('timestamp', 'N/A')}")
         if 'arguments' in command_info:
             args = command_info['arguments']
-            print(f"  Parameters: games={args.get('total_games')}, sims={args.get('num_simulations')}, temp={args.get('temperature')}, cpu={args.get('cpu_utilization')}")
+            print(f"  Parameters: games={args.get('total_games')}, sims={args.get('num_simulations')}, temp={args.get('temperature')}, c_puct={args.get('c_puct')}, cpu={args.get('cpu_utilization')}")
     
     print(f"Number of processes: {len(process_data_list)}")
     print("\nPer-process breakdown:")
