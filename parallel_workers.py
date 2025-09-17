@@ -64,6 +64,7 @@ def selfplay_worker_process(gpu_device: str, num_games: int, task_config: Dict[s
         games_completed = 0
         game_lengths = []
         game_outcomes = []
+        game_ending_reasons = []
         
         for game_num in range(num_games):
             try:
@@ -85,11 +86,20 @@ def selfplay_worker_process(gpu_device: str, num_games: int, task_config: Dict[s
                     outcome = training_data[-1][3]  # (board_fen, history_fens, move_probs, outcome)
                     game_outcomes.append(outcome)
                 
+                # Get the ending reason from the last completed game
+                ending_reason = mt.get_last_game_ending_reason()
+                if ending_reason:
+                    game_ending_reasons.append(ending_reason)
+                else:
+                    game_ending_reasons.append("Unknown ending reason")
+                
                 game_time = time.time() - game_start_time
                 print(f"Process {process_id}: Game {game_num + 1} completed in {game_time:.1f}s, {len(training_data)} examples")
                 
             except Exception as e:
                 print(f"Process {process_id}: Error in game {game_num + 1}: {e}")
+                # Add error as ending reason
+                game_ending_reasons.append(f"Game error: {str(e)}")
                 continue
         
         # Calculate detailed statistics
@@ -100,6 +110,11 @@ def selfplay_worker_process(gpu_device: str, num_games: int, task_config: Dict[s
         avg_game_length = sum(game_lengths) / len(game_lengths) if game_lengths else 0
         min_game_length = min(game_lengths) if game_lengths else 0
         max_game_length = max(game_lengths) if game_lengths else 0
+        
+        # Count ending reasons
+        ending_reason_counts = {}
+        for reason in game_ending_reasons:
+            ending_reason_counts[reason] = ending_reason_counts.get(reason, 0) + 1
         
         # Create process statistics
         process_stats = create_process_statistics(
@@ -121,6 +136,7 @@ def selfplay_worker_process(gpu_device: str, num_games: int, task_config: Dict[s
                 'minimum': min_game_length,
                 'maximum': max_game_length
             },
+            game_ending_reasons=ending_reason_counts,
             simulations_per_move=num_simulations,
             temperature=temperature
         )
@@ -207,6 +223,7 @@ def evaluation_worker_process(gpu_device: str, num_games: int, task_config: Dict
         new_model_wins = 0
         old_model_wins = 0
         draws = 0
+        game_ending_reasons = []
         
         for game_num in range(num_games):
             try:
@@ -247,6 +264,12 @@ def evaluation_worker_process(gpu_device: str, num_games: int, task_config: Dict
                     game_times.append(game_result['game_time_seconds'])
                     move_counts.append(game_result['move_count'])
                     
+                    # Collect ending reason
+                    if 'result_str' in game_result:
+                        game_ending_reasons.append(game_result['result_str'])
+                    else:
+                        game_ending_reasons.append("Unknown ending reason")
+                    
                     # Count wins from new model's perspective
                     result = game_result['result']
                     if result == 1.0:  # White wins
@@ -267,6 +290,8 @@ def evaluation_worker_process(gpu_device: str, num_games: int, task_config: Dict
                 
             except Exception as e:
                 print(f"Process {process_id}: Error in evaluation game {game_num + 1}: {e}")
+                # Add error as ending reason
+                game_ending_reasons.append(f"Game error: {str(e)}")
                 # Add error result
                 game_results.append({
                     'game_id': starting_game_id + game_num,
@@ -278,6 +303,11 @@ def evaluation_worker_process(gpu_device: str, num_games: int, task_config: Dict
         # Create process statistics
         avg_game_time = sum(game_times) / len(game_times) if game_times else 0
         avg_moves = sum(move_counts) / len(move_counts) if move_counts else 0
+        
+        # Count ending reasons
+        ending_reason_counts = {}
+        for reason in game_ending_reasons:
+            ending_reason_counts[reason] = ending_reason_counts.get(reason, 0) + 1
         
         process_stats = create_process_statistics(
             process_id=process_id,
@@ -293,6 +323,7 @@ def evaluation_worker_process(gpu_device: str, num_games: int, task_config: Dict
             failed_games=len([r for r in game_results if 'error' in r]),
             avg_game_time_seconds=avg_game_time,
             avg_moves_per_game=avg_moves,
+            game_ending_reasons=ending_reason_counts,
             simulations_per_move=num_simulations
         )
         
@@ -356,7 +387,7 @@ def play_single_evaluation_game(white_model, black_model, num_simulations: int, 
         game_history = []
         move_count = 0
         
-        while not board.is_game_over() and move_count < 600:  # Early stopping
+        while not board.is_game_over() and move_count < 800:  # Early stopping
             # Select model based on whose turn it is
             current_model = white_model if board.turn else black_model
             current_player = "White" if board.turn else "Black"
@@ -394,9 +425,9 @@ def play_single_evaluation_game(white_model, black_model, num_simulations: int, 
              board.is_seventyfive_moves() or board.is_fivefold_repetition():
             result = 0.0
             result_str = "Draw"
-        elif move_count >= 600:
+        elif move_count >= 800:
             result = 0.0
-            result_str = "Draw (600-ply limit)"
+            result_str = "Draw (800-ply limit)"
         else:
             result = 0.0
             result_str = "Draw (unexpected end)"

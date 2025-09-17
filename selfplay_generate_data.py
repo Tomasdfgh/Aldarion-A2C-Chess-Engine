@@ -23,7 +23,8 @@ def generate_selfplay_data(total_games: int, num_simulations: int,
                           temperature: float, model_path: str,
                           cpu_utilization: float = 0.90,
                           max_processes_per_gpu: int = None,
-                          output_filename: str = None) -> str:
+                          output_filename: str = None,
+                          command_info: Dict = None) -> str:
     """
     Generate self-play training data using unified parallel processing
     
@@ -35,6 +36,7 @@ def generate_selfplay_data(total_games: int, num_simulations: int,
         cpu_utilization: Target CPU utilization (0.0 to 1.0)
         max_processes_per_gpu: Manual override for max processes per GPU
         output_filename: Optional output filename
+        command_info: Dict containing command and arguments used
     
     Returns:
         Path to saved training data file
@@ -78,11 +80,11 @@ def generate_selfplay_data(total_games: int, num_simulations: int,
         return None
     
     # Save training data
-    saved_file = save_training_data(training_data, process_statistics, output_filename)
+    saved_file = save_training_data(training_data, process_statistics, output_filename, command_info)
     return saved_file
 
 
-def save_training_data(training_data: List, process_stats: List, output_filename: str = None) -> str:
+def save_training_data(training_data: List, process_stats: List, output_filename: str = None, command_info: Dict = None) -> str:
     """
     Save training data and process statistics
     
@@ -90,6 +92,7 @@ def save_training_data(training_data: List, process_stats: List, output_filename
         training_data: List of training examples
         process_stats: List of process statistics
         output_filename: Optional output filename
+        command_info: Dict containing command and arguments used
     
     Returns:
         Filename where data was saved
@@ -112,9 +115,13 @@ def save_training_data(training_data: List, process_stats: List, output_filename
     with open(main_data_path, 'wb') as f:
         pickle.dump(training_data, f)
     
-    # Save statistics
+    # Save statistics with command information
+    stats_data = {
+        'process_stats': process_stats,
+        'command_info': command_info
+    }
     with open(stats_path, 'wb') as f:
-        pickle.dump(process_stats, f)
+        pickle.dump(stats_data, f)
     
     print(f"Training data saved to: {main_data_path}")
     print(f"Process statistics saved to: {stats_path}")
@@ -147,8 +154,8 @@ Examples:
                         help='Total number of games to generate (default: 100)')
     parser.add_argument('--num_simulations', type=int, default=100,
                         help='MCTS simulations per move (default: 100)')
-    parser.add_argument('--temperature', type=float, default=0.8,
-                        help='Temperature for move selection (default: 0.8)')
+    parser.add_argument('--temperature', type=float, default=1.0,
+                        help='Temperature for move selection (default: 1.0)')
     parser.add_argument('--model_path', type=str, default='model_weights/model_weights.pth',
                         help='Path to model weights (default: model_weights/model_weights.pth)')
     parser.add_argument('--cpu_utilization', type=float, default=0.90,
@@ -176,6 +183,21 @@ Examples:
     os.makedirs("training_data", exist_ok=True)
     os.makedirs("training_data_stats", exist_ok=True)
     
+    # Capture command information
+    command_info = {
+        'command_line': ' '.join(sys.argv),
+        'timestamp': datetime.now().isoformat(),
+        'arguments': {
+            'total_games': args.total_games,
+            'num_simulations': args.num_simulations,
+            'temperature': args.temperature,
+            'model_path': args.model_path,
+            'cpu_utilization': args.cpu_utilization,
+            'max_processes_per_gpu': args.max_processes_per_gpu,
+            'output': args.output
+        }
+    }
+    
     # Run self-play generation
     try:
         saved_file = generate_selfplay_data(
@@ -185,7 +207,8 @@ Examples:
             model_path=args.model_path,
             cpu_utilization=args.cpu_utilization,
             max_processes_per_gpu=args.max_processes_per_gpu,
-            output_filename=args.output
+            output_filename=args.output,
+            command_info=command_info
         )
         
         if saved_file:
