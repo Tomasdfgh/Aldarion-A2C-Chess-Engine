@@ -38,6 +38,7 @@ import shutil
 import json
 from datetime import datetime
 from pathlib import Path
+import gc
 
 
 def run_command_with_output(command, description):
@@ -76,14 +77,14 @@ def run_command_with_output(command, description):
         return_code = process.wait()
         
         if return_code == 0:
-            print(f"\n✅ {description} completed successfully!")
+            print(f"\n {description} completed successfully!")
             return True, return_code
         else:
-            print(f"\n❌ {description} failed with exit code {return_code}")
+            print(f"\n {description} failed with exit code {return_code}")
             return False, return_code
             
     except KeyboardInterrupt:
-        print(f"\n⚠️  {description} interrupted by user")
+        print(f"\n {description} interrupted by user")
         try:
             process.terminate()
             process.wait(timeout=5)
@@ -91,7 +92,7 @@ def run_command_with_output(command, description):
             process.kill()
         return False, -1
     except Exception as e:
-        print(f"\n💥 {description} failed with error: {e}")
+        print(f"\n {description} failed with error: {e}")
         return False, -1
 
 
@@ -127,7 +128,7 @@ def save_iteration_results(iteration_dir, results):
     results_file = os.path.join(iteration_dir, "iteration_results.json")
     with open(results_file, 'w') as f:
         json.dump(results, f, indent=2)
-    print(f"📄 Iteration results saved to: {results_file}")
+    print(f" Iteration results saved to: {results_file}")
     return results_file
 
 
@@ -144,7 +145,7 @@ def run_single_iteration(args):
     # Create iteration directory for organizing results
     iteration_dir = create_iteration_directory(args.iteration_number)
     
-    print("🚀 ALDARION CHESS ENGINE - SINGLE ALPHAZERO ITERATION")
+    print(" ALDARION CHESS ENGINE - SINGLE ALPHAZERO ITERATION")
     print("="*70)
     print(f"Iteration: {args.iteration_number}")
     print(f"Timestamp: {timestamp}")
@@ -171,16 +172,16 @@ def run_single_iteration(args):
     }
     
     # STEP 1: Find current best model
-    print(f"\n📋 STEP 0: Locating current best model...")
+    print(f"\n STEP 0: Locating current best model...")
     current_best_model = find_current_best_model()
     
     if current_best_model is None:
-        print("❌ No current best model found! Please ensure model_weights/model_weights.pth exists.")
+        print(" No current best model found! Please ensure model_weights/model_weights.pth exists.")
         results['error'] = "No current best model found"
         save_iteration_results(iteration_dir, results)
         return results
     
-    print(f"✅ Current best model: {current_best_model}")
+    print(f" Current best model: {current_best_model}")
     results['current_best_model'] = current_best_model
     
     # Copy current best to iteration directory for record keeping
@@ -219,7 +220,7 @@ def run_single_iteration(args):
         
         selfplay_data_path = f"training_data/{selfplay_filename}"
         if not os.path.exists(selfplay_data_path):
-            print(f"❌ Expected self-play data file not found: {selfplay_data_path}")
+            print(f" Expected self-play data file not found: {selfplay_data_path}")
             results['error'] = f"Self-play data file not found: {selfplay_data_path}"
             save_iteration_results(iteration_dir, results)
             return results
@@ -257,7 +258,7 @@ def run_single_iteration(args):
         # Find the trained model (train_model.py creates model_weights_final.pth)
         trained_model_path = "model_weights/model_weights_final.pth"
         if not os.path.exists(trained_model_path):
-            print(f"❌ Expected trained model not found: {trained_model_path}")
+            print(f" Expected trained model not found: {trained_model_path}")
             results['error'] = f"Trained model not found: {trained_model_path}"
             save_iteration_results(iteration_dir, results)
             return results
@@ -265,17 +266,14 @@ def run_single_iteration(args):
         # Rename trained model to iteration-specific name
         new_model_path = f"model_weights/{new_model_filename}"
         shutil.move(trained_model_path, new_model_path)
-        print(f"📦 New model saved as: {new_model_path}")
+        print(f" New model saved as: {new_model_path}")
         results['new_model_path'] = new_model_path
         
         # Copy new model to iteration directory
         shutil.copy2(new_model_path, os.path.join(iteration_dir, "new_model.pth"))
         
-        # GPU Memory Cleanup before evaluation
-        print(f"\n🧹 Aggressive GPU memory cleanup before evaluation...")
-        
         # Kill any lingering Python processes that might be holding GPU memory
-        print("🔪 Killing any lingering Python processes...")
+        print("Killing any lingering Python processes...")
         kill_commands = [
             "pkill -f 'python.*selfplay_generate_data'",
             "pkill -f 'python.*MTCS'", 
@@ -288,30 +286,18 @@ def run_single_iteration(args):
             except:
                 pass  # Ignore errors if no processes to kill
         
-        print("⏳ Waiting for all processes to fully terminate...")
-        time.sleep(5)  # Give more time for processes to clean up
+        print("Waiting for all processes to fully terminate...")
+        time.sleep(5)
         
-        # Clear GPU memory multiple times
-        for i in range(3):
-            cleanup_command = "python3 -c \"import torch; torch.cuda.empty_cache() if torch.cuda.is_available() else None; print('GPU memory cleared')\""
-            try:
-                result = subprocess.run(cleanup_command, shell=True, check=True, capture_output=True, text=True)
-                print(f"✅ GPU memory cleared {i+1}/3")
-            except Exception as e:
-                print(f"⚠️  GPU cleanup warning: {e}")
-            time.sleep(1)
-        
-        # Force garbage collection
-        import gc
         gc.collect()
         
         print("🔍 Checking GPU memory status...")
         try:
             gpu_check = "python3 -c \"import torch; print(f'GPU memory: {torch.cuda.memory_allocated()/1e9:.2f}GB allocated, {torch.cuda.memory_reserved()/1e9:.2f}GB reserved') if torch.cuda.is_available() else print('CUDA not available')\""
             result = subprocess.run(gpu_check, shell=True, check=True, capture_output=True, text=True)
-            print(f"📊 {result.stdout.strip()}")
+            print(f"{result.stdout.strip()}")
         except Exception as e:
-            print(f"⚠️  GPU status check failed: {e}")
+            print(f"GPU status check failed: {e}")
         
         # STEP 3: Evaluate new model against current best
         # Use lower CPU utilization for evaluation to reduce GPU memory usage
