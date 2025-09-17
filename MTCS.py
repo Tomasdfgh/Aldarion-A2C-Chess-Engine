@@ -556,6 +556,7 @@ def get_best_move(model, board_fen, num_simulations, device, game_history=None, 
 		p=1.0
 	)
 	
+	
 	# Run MCTS (no noise for evaluation, only for self-play training)
 	root = mcts_search(root, model, num_simulations, device, game_history, add_root_noise=False, c_puct=c_puct, board=board)
 	
