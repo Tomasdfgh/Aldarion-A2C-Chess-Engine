@@ -37,6 +37,7 @@ def selfplay_worker_process(gpu_device: str, num_games: int, task_config: Dict[s
     try:
         num_simulations = task_config['num_simulations']
         temperature = task_config['temperature']
+        c_puct = task_config.get('c_puct', 4.0)  # Default to 4.0 if not specified
         model_path = task_config['model_path']
         
         print(f"Process {process_id}: Starting on {gpu_device} with {num_games} games")
@@ -73,7 +74,7 @@ def selfplay_worker_process(gpu_device: str, num_games: int, task_config: Dict[s
                 
                 # Use existing run_game function with game tracking info
                 training_data = mt.run_game(model, temperature, num_simulations, device, 
-                                          current_game=game_num + 1, total_games=num_games, process_id=process_id)
+                                          c_puct=c_puct, current_game=game_num + 1, total_games=num_games, process_id=process_id)
                 all_training_data.extend(training_data)
                 games_completed += 1
                 

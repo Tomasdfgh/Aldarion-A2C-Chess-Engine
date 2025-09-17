@@ -21,6 +21,7 @@ from parallel_workers import selfplay_worker_process
 
 def generate_selfplay_data(total_games: int, num_simulations: int, 
                           temperature: float, model_path: str,
+                          c_puct: float = 4.0,
                           cpu_utilization: float = 0.90,
                           max_processes_per_gpu: int = None,
                           output_filename: str = None,
@@ -33,6 +34,7 @@ def generate_selfplay_data(total_games: int, num_simulations: int,
         num_simulations: MCTS simulations per move
         temperature: Temperature for move selection
         model_path: Path to model weights
+        c_puct: MCTS exploration parameter (default: 4.0)
         cpu_utilization: Target CPU utilization (0.0 to 1.0)
         max_processes_per_gpu: Manual override for max processes per GPU
         output_filename: Optional output filename
@@ -47,6 +49,7 @@ def generate_selfplay_data(total_games: int, num_simulations: int,
     print(f"Total games: {total_games}")
     print(f"Simulations per move: {num_simulations}")
     print(f"Temperature: {temperature}")
+    print(f"C_PUCT: {c_puct}")
     print(f"Model: {os.path.basename(model_path)}")
     print(f"CPU utilization: {cpu_utilization*100:.0f}%")
     
@@ -55,6 +58,7 @@ def generate_selfplay_data(total_games: int, num_simulations: int,
         'total_tasks': total_games,
         'num_simulations': num_simulations,
         'temperature': temperature,
+        'c_puct': c_puct,
         'model_path': model_path
     }
     
@@ -156,6 +160,8 @@ Examples:
                         help='MCTS simulations per move (default: 100)')
     parser.add_argument('--temperature', type=float, default=1.0,
                         help='Temperature for move selection (default: 1.0)')
+    parser.add_argument('--c_puct', type=float, default=4.0,
+                        help='MCTS exploration parameter (default: 4.0)')
     parser.add_argument('--model_path', type=str, default='model_weights/model_weights.pth',
                         help='Path to model weights (default: model_weights/model_weights.pth)')
     parser.add_argument('--cpu_utilization', type=float, default=0.90,
@@ -191,6 +197,7 @@ Examples:
             'total_games': args.total_games,
             'num_simulations': args.num_simulations,
             'temperature': args.temperature,
+            'c_puct': args.c_puct,
             'model_path': args.model_path,
             'cpu_utilization': args.cpu_utilization,
             'max_processes_per_gpu': args.max_processes_per_gpu,
@@ -204,6 +211,7 @@ Examples:
             total_games=args.total_games,
             num_simulations=args.num_simulations,
             temperature=args.temperature,
+            c_puct=args.c_puct,
             model_path=args.model_path,
             cpu_utilization=args.cpu_utilization,
             max_processes_per_gpu=args.max_processes_per_gpu,
