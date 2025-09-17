@@ -5,6 +5,9 @@ import numpy as np
 import math
 import random
 
+# Global variable to store the last game's ending reason for stats collection
+last_game_ending_reason = None
+
 
 class MTCSNode:
 	def __init__(self, team, state, action, n, w, q, p, parent=None):
@@ -227,16 +230,23 @@ def backpropagate(node, value):
 		value = -value
 		current = current.parent
 
-def get_alphazero_temperature(move_number):
+def get_alphazero_temperature(move_number, base_temperature=1.0):
 	"""
-	Get temperature according to AlphaZero paper:
-	- Temperature = 1.0 for first 30 moves (exploration)
-	- Temperature → 0.0 after move 30 (exploitation)
+	Get temperature with three-phase schedule:
+	- Temperature = base_temperature for moves 1-100
+	- Temperature = base_temperature/2 for moves 101-200
+	- Temperature = 0.0 after move 200
 	
 	Args:
 		move_number: Chess move number (not plies), starts from 1
+		base_temperature: Base temperature to use during exploration phases
 	"""
-	return 1.0 if move_number <= 30 else 0.0
+	if move_number <= 100:
+		return base_temperature
+	elif move_number <= 200:
+		return base_temperature / 2.0
+	else:
+		return 0.0
 
 def mcts_search(root, model, num_simulations, device, game_history=None, add_root_noise=False, c_puct=1.0):
 	"""
@@ -262,7 +272,6 @@ def mcts_search(root, model, num_simulations, device, game_history=None, add_roo
 		for child in root.children:
 			child.P = noisy_policy[child.action]
 		
-		print("Applied fresh Dirichlet noise to root")
 	
 	# Run MCTS simulations
 	for i in range(num_simulations):
@@ -400,7 +409,7 @@ def run_game(model, temperature, num_simulations, device, c_puct=1.0, current_ga
 	move_count = 0
 	root = None  # Will be created or reused each iteration
 	
-	while not board.is_game_over() and move_count < 600:  # Early stopping at 600 plies
+	while not board.is_game_over() and move_count < 800:  # Early stopping at 800 plies
 		print(f"Move {move_count + 1}, {'White' if board.turn else 'Black'} to move")
 		
 		# Create root node for current position (only if no subtree to reuse)
@@ -432,7 +441,7 @@ def run_game(model, temperature, num_simulations, device, c_puct=1.0, current_ga
 		
 		# Select and make move using AlphaZero temperature schedule
 		# Use fullmove_number to count actual moves (not plies)
-		alphazero_temperature = get_alphazero_temperature(board.fullmove_number)
+		alphazero_temperature = get_alphazero_temperature(board.fullmove_number, base_temperature=temperature)
 		selected_move, selected_child = select_move(root, alphazero_temperature)
 		
 		if selected_move is None:
@@ -440,6 +449,7 @@ def run_game(model, temperature, num_simulations, device, c_puct=1.0, current_ga
 			break
 		
 		print(f"Selected move: {selected_move} (temp={alphazero_temperature}){game_info}")
+		print()  # Add newline between moves
 		
 		# Apply move
 		move_obj = chess.Move.from_uci(selected_move)
@@ -451,22 +461,40 @@ def run_game(model, temperature, num_simulations, device, c_puct=1.0, current_ga
 		
 		move_count += 1
 	
-	# Determine game outcome
+	# Determine game outcome and store ending reason globally for stats
+	global last_game_ending_reason
 	if board.is_checkmate():
 		# Winner gets +1, loser gets -1
 		# board.turn indicates who is checkmated (whose turn it is when checkmate occurs)
 		game_outcome = -1 if board.turn else 1  # If White's turn -> White checkmated -> Black wins (-1), vice versa
-		print(f"Game over: {'White' if game_outcome == 1 else 'Black'} wins by checkmate")
-	elif board.is_stalemate() or board.is_insufficient_material() or board.is_seventyfive_moves() or board.is_fivefold_repetition():
+		winner = 'Black' if game_outcome == -1 else 'White'
+		last_game_ending_reason = f"{winner} wins by checkmate"
+		print(f"Game over: {last_game_ending_reason}")
+	elif board.is_stalemate():
 		game_outcome = 0  # Draw
-		print("Game over: Draw")
-	elif move_count >= 600:
+		last_game_ending_reason = "Draw by stalemate"
+		print(f"Game over: {last_game_ending_reason}")
+	elif board.is_insufficient_material():
+		game_outcome = 0  # Draw
+		last_game_ending_reason = "Draw by insufficient material"
+		print(f"Game over: {last_game_ending_reason}")
+	elif board.is_seventyfive_moves():
+		game_outcome = 0  # Draw
+		last_game_ending_reason = "Draw by 75-move rule"
+		print(f"Game over: {last_game_ending_reason}")
+	elif board.is_fivefold_repetition():
+		game_outcome = 0  # Draw
+		last_game_ending_reason = "Draw by fivefold repetition"
+		print(f"Game over: {last_game_ending_reason}")
+	elif move_count >= 800:
 		game_outcome = 0  # Early stopping - treat as draw
-		print("Game over: 600-ply limit reached (Draw)")
+		last_game_ending_reason = "Draw by 800-ply limit"
+		print(f"Game over: {last_game_ending_reason}")
 	else:
 		# This should not happen if game loop only continues while conditions are met
 		game_outcome = 0  # Fallback draw
-		print("Game over: Unexpected end condition")
+		last_game_ending_reason = "Draw by unexpected end condition"
+		print(f"Game over: {last_game_ending_reason}")
 	
 	# Convert training data to final format with game outcomes
 	final_training_data = []
@@ -484,6 +512,11 @@ def run_game(model, temperature, num_simulations, device, c_puct=1.0, current_ga
 	print(f"Generated {len(final_training_data)} training examples")
 	
 	return final_training_data
+
+def get_last_game_ending_reason():
+	"""Return the ending reason of the last completed game"""
+	global last_game_ending_reason
+	return last_game_ending_reason
 
 def get_best_move(model, board_fen, num_simulations, device, game_history=None, temperature=0.0, c_puct=1.0):
 	"""

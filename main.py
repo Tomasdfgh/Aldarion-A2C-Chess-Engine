@@ -14,7 +14,7 @@ Perfect for running controlled, single iterations with full logging.
 
 
 '''
-  tmux new-session -d -s selfplay 'python3 selfplay_generate_data.py --total_games 60 --num_simulations 800
+  tmux new-session -d -s selfplay 'python3 selfplay_generate_data.py --total_games 84 --num_simulations 800
   --cpu_utilization 0.9'
 
   To monitor the session:
@@ -25,6 +25,8 @@ Perfect for running controlled, single iterations with full logging.
 
   To check if it's still running:
   tmux list-sessions
+
+  tmux kill-session -t selfplay
 '''
 
 import os
