@@ -33,13 +33,13 @@ class MTCSNode:
 		board = chess.Board(self.state)
 		return board.is_game_over()
 
-def calculate_ucb(parent, child, c_puct=1.0):
+def calculate_ucb(parent, child, c_puct=1.5):
 	"""Calculate UCB1 score with PUCT formula"""
 	q = child.Q  # 0 when N==0
 	u = c_puct * child.P * math.sqrt(max(1, parent.N)) / (1 + child.N)
 	return q + u
 
-def select_node(root, c_puct=1.0):
+def select_node(root, c_puct=1.5):
 	"""
 	Traverse tree using UCB to find leaf node for expansion
 	Returns the leaf node to expand
@@ -104,13 +104,13 @@ def build_leaf_history(node, original_game_history, max_history=7):
 
 def add_dirichlet_noise(policy_dict, alpha=0.3, noise_weight=0.25):
 	"""
-	Add Dirichlet noise to policy probabilities (AlphaZero paper)
-	Only applied to root node during self-play
+	Add Dirichlet noise to policy probabilities (front-loaded)
+	noise_weight varies by ply: 0.15 for plies <10, 0.05 for plies 10-30, then 0.0
 	"""
 	moves = list(policy_dict.keys())
 	probs = list(policy_dict.values())
 	
-	if len(moves) == 0:
+	if len(moves) == 0 or noise_weight == 0.0:
 		return policy_dict
 	
 	# Generate Dirichlet noise
@@ -232,23 +232,20 @@ def backpropagate(node, value):
 
 def get_alphazero_temperature(move_number, base_temperature=1.0):
 	"""
-	Get temperature with three-phase schedule:
-	- Temperature = base_temperature for moves 1-100
-	- Temperature = base_temperature/2 for moves 101-200
-	- Temperature = 0.0 after move 200
+	Get temperature with two-phase schedule:
+	- Temperature = base_temperature for moves 1-60
+	- Temperature = 0.0 after move 60
 	
 	Args:
 		move_number: Chess move number (not plies), starts from 1
-		base_temperature: Base temperature to use during exploration phases
+		base_temperature: Base temperature to use during exploration phase
 	"""
-	if move_number <= 100:
+	if move_number <= 60:
 		return base_temperature
-	elif move_number <= 200:
-		return base_temperature / 2.0
 	else:
 		return 0.0
 
-def mcts_search(root, model, num_simulations, device, game_history=None, add_root_noise=False, c_puct=1.0):
+def mcts_search(root, model, num_simulations, device, game_history=None, add_root_noise=False, c_puct=1.5, board=None):
 	"""
 	Run MCTS for num_simulations iterations
 	Returns root node with updated statistics
@@ -257,20 +254,33 @@ def mcts_search(root, model, num_simulations, device, game_history=None, add_roo
 	if not root.is_expanded and not root.is_terminal():
 		_, _ = expand_node(root, model, device, game_history, add_noise=False)  # Expand without noise first
 	
-	# Apply fresh Dirichlet noise to root every move (AlphaZero paper)
+	# Apply fresh Dirichlet noise to root every move (front-loaded)
 	# This applies to both fresh roots and reused subtree roots
-	if add_root_noise and len(root.children) > 0:
-		# Create policy dict from children's current priors
-		policy_dict = {}
-		for child in root.children:
-			policy_dict[child.action] = child.P
+	if add_root_noise and len(root.children) > 0 and board is not None:
+		# Calculate ply count from board position
+		ply = 2 * (board.fullmove_number - 1) + (0 if board.turn else 1)
 		
-		# Apply fresh Dirichlet noise
-		noisy_policy = add_dirichlet_noise(policy_dict, alpha=0.3, noise_weight=0.25)
+		# Determine noise weight based on ply (front-loaded)
+		if ply < 10:
+			noise_weight = 0.15
+		elif ply < 30:
+			noise_weight = 0.05
+		else:
+			noise_weight = 0.0
 		
-		# Update children's priors with fresh noisy values
-		for child in root.children:
-			child.P = noisy_policy[child.action]
+		# Only apply noise if noise_weight > 0
+		if noise_weight > 0.0:
+			# Create policy dict from children's current priors
+			policy_dict = {}
+			for child in root.children:
+				policy_dict[child.action] = child.P
+			
+			# Apply fresh Dirichlet noise
+			noisy_policy = add_dirichlet_noise(policy_dict, alpha=0.3, noise_weight=noise_weight)
+			
+			# Update children's priors with fresh noisy values
+			for child in root.children:
+				child.P = noisy_policy[child.action]
 		
 	
 	# Run MCTS simulations
@@ -374,7 +384,7 @@ def promote_child_to_root(child_node):
 	# This child becomes the new root with all its accumulated statistics
 	return child_node
 
-def run_game(model, temperature, num_simulations, device, c_puct=1.0, current_game=None, total_games=None, process_id=None):
+def run_game(model, temperature, num_simulations, device, c_puct=1.5, current_game=None, total_games=None, process_id=None):
 	"""
 	Play a full game using MCTS with AlphaZero parameters, collecting training data
 	Returns list of (board_state, history_fens, move_probabilities, game_outcome) tuples
@@ -384,14 +394,14 @@ def run_game(model, temperature, num_simulations, device, c_puct=1.0, current_ga
 		temperature: Base temperature for move selection
 		num_simulations: Number of MCTS simulations per move
 		device: PyTorch device
-		c_puct: PUCT exploration constant (default: 1.0, typical range: 1.0-2.5 for chess)
+		c_puct: PUCT exploration constant (default: 1.5, typical range: 1.0-2.5 for chess)
 		current_game: Current game number (1-indexed, optional)
 		total_games: Total number of games in this process (optional)
 		process_id: Process identifier (optional)
 	
 	AlphaZero implementation:
 	- Dirichlet noise added to root node during self-play
-	- Temperature = 1 for first 30 moves, then temperature → 0
+	- Temperature = base_temperature for first 60 moves, then temperature → 0
 	- Training data uses temperature = 1 probabilities
 	"""
 	game_info = ""
@@ -428,7 +438,7 @@ def run_game(model, temperature, num_simulations, device, c_puct=1.0, current_ga
 			print(f"Reusing MCTS subtree (N={root.N}, children={len(root.children)})")
 		
 		# Run MCTS with Dirichlet noise at root (AlphaZero self-play)
-		root = mcts_search(root, model, num_simulations, device, game_history, add_root_noise=True, c_puct=c_puct)
+		root = mcts_search(root, model, num_simulations, device, game_history, add_root_noise=True, c_puct=c_puct, board=board)
 		
 		# Get move probabilities for training data (always use temperature=1 for training data)
 		move_probs = get_move_probabilities(root, temperature=1.0)
@@ -518,7 +528,7 @@ def get_last_game_ending_reason():
 	global last_game_ending_reason
 	return last_game_ending_reason
 
-def get_best_move(model, board_fen, num_simulations, device, game_history=None, temperature=0.0, c_puct=1.0):
+def get_best_move(model, board_fen, num_simulations, device, game_history=None, temperature=0.0, c_puct=1.5):
 	"""
 	Get the best move for a given position using MCTS
 	
@@ -529,7 +539,7 @@ def get_best_move(model, board_fen, num_simulations, device, game_history=None, 
 		device: PyTorch device
 		game_history: Optional list of chess.Board objects for history
 		temperature: Temperature for move selection (0.0 = deterministic)
-		c_puct: PUCT exploration constant (default: 1.0, typical range: 1.0-2.5 for chess)
+		c_puct: PUCT exploration constant (default: 1.5, typical range: 1.0-2.5 for chess)
 	
 	Returns:
 		tuple: (best_move_uci, move_probabilities_dict)
@@ -547,7 +557,7 @@ def get_best_move(model, board_fen, num_simulations, device, game_history=None, 
 	)
 	
 	# Run MCTS (no noise for evaluation, only for self-play training)
-	root = mcts_search(root, model, num_simulations, device, game_history, add_root_noise=False, c_puct=c_puct)
+	root = mcts_search(root, model, num_simulations, device, game_history, add_root_noise=False, c_puct=c_puct, board=board)
 	
 	# Get move probabilities
 	move_probs = get_move_probabilities(root, temperature)
