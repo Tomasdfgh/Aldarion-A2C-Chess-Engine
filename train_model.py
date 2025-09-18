@@ -148,13 +148,6 @@ def load_training_data(data_files: List[str]) -> List[Tuple[str, List[str], Dict
                 if len(sample) == 4 and isinstance(sample[0], str):
                     all_training_data.extend(data)
                     print(f"  Loaded {len(data)} examples from {file_path}")
-                elif len(sample) == 3 and isinstance(sample[0], str):
-                    # Legacy 3-tuple format compatibility
-                    print(f"  Warning: Loading legacy 3-tuple format from {data_file}")
-                    # Convert 3-tuple to 4-tuple by adding empty history
-                    converted_data = [(fen, [], move_probs, outcome) for fen, move_probs, outcome in data]
-                    all_training_data.extend(converted_data)
-                    print(f"  Loaded {len(data)} examples (converted from 3-tuple format) from {file_path}")
                 else:
                     print(f"  Warning: Unexpected data format in {data_file} (expected 4-tuple or 3-tuple, got {len(sample)}-tuple)")
             else:

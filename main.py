@@ -12,23 +12,6 @@ This script runs one complete AlphaZero iteration:
 Perfect for running controlled, single iterations with full logging.
 """
 
-
-'''
-  tmux new-session -d -s selfplay 'python3 selfplay_generate_data.py --total_games 84 --num_simulations 800
-  --cpu_utilization 0.9'
-
-  To monitor the session:
-  tmux attach -t selfplay
-
-  To detach (keep running in background):
-  Ctrl+b, then d
-
-  To check if it's still running:
-  tmux list-sessions
-
-  tmux kill-session -t selfplay
-'''
-
 import os
 import sys
 import subprocess
@@ -291,7 +274,7 @@ def run_single_iteration(args):
         
         gc.collect()
         
-        print("🔍 Checking GPU memory status...")
+        print("Checking GPU memory status...")
         try:
             gpu_check = "python3 -c \"import torch; print(f'GPU memory: {torch.cuda.memory_allocated()/1e9:.2f}GB allocated, {torch.cuda.memory_reserved()/1e9:.2f}GB reserved') if torch.cuda.is_available() else print('CUDA not available')\""
             result = subprocess.run(gpu_check, shell=True, check=True, capture_output=True, text=True)
@@ -313,7 +296,7 @@ def run_single_iteration(args):
         )
         
         step_start = time.time()
-        print(f"\n🥊 Starting model evaluation...")
+        print(f"\nStarting model evaluation...")
         print(f"Old model: {os.path.basename(current_best_model)}")
         print(f"New model: {os.path.basename(new_model_path)}")
         print(f"Games: {args.eval_games}, Win threshold: {args.win_threshold}%")
@@ -335,17 +318,17 @@ def run_single_iteration(args):
         # STEP 4: Update champion based on evaluation results
         if return_code == 0:
             # New model won! Update the champion
-            print(f"\n🏆 NEW CHAMPION! New model accepted.")
+            print(f"\nNEW CHAMPION! New model accepted.")
             
             # Backup old champion
             backup_name = f"model_weights_backup_iter_{args.iteration_number}_{timestamp}.pth"
             backup_path = f"model_weights/{backup_name}"
             shutil.copy2(current_best_model, backup_path)
-            print(f"📁 Old champion backed up as: {backup_path}")
+            print(f"Old champion backed up as: {backup_path}")
             
             # Update main model file
             shutil.copy2(new_model_path, "model_weights/model_weights.pth")
-            print(f"✅ Updated model_weights/model_weights.pth with new champion")
+            print(f"Updated model_weights/model_weights.pth with new champion")
             
             results['champion_changed'] = True
             results['new_champion'] = new_model_path
@@ -354,23 +337,23 @@ def run_single_iteration(args):
             
         else:
             # New model lost, keep old champion
-            print(f"\n💀 New model rejected. Keeping current champion: {os.path.basename(current_best_model)}")
+            print(f"\nNew model rejected. Keeping current champion: {os.path.basename(current_best_model)}")
             
             # Clean up rejected model to save space
             os.remove(new_model_path)
-            print(f"🗑️  Removed rejected model: {new_model_path}")
+            print(f"Removed rejected model: {new_model_path}")
             
             results['champion_changed'] = False
             results['rejected_model'] = new_model_path
             results['success'] = True  # Iteration completed successfully even if model rejected
         
     except KeyboardInterrupt:
-        print(f"\n⚠️  Iteration interrupted by user")
+        print(f"\nIteration interrupted by user")
         results['error'] = "Interrupted by user"
         results['success'] = False
         
     except Exception as e:
-        print(f"\n💥 Iteration failed with error: {e}")
+        print(f"\nIteration failed with error: {e}")
         import traceback
         traceback.print_exc()
         results['error'] = str(e)
@@ -382,17 +365,17 @@ def run_single_iteration(args):
     results['total_duration_minutes'] = total_time / 60
     
     print(f"\n{'='*70}")
-    print(f"🏁 ITERATION {args.iteration_number} COMPLETE")
+    print(f"ITERATION {args.iteration_number} COMPLETE")
     print(f"{'='*70}")
     print(f"Total time: {total_time/60:.1f} minutes")
-    print(f"Champion changed: {'✅ YES' if results['champion_changed'] else '❌ NO'}")
-    print(f"Iteration success: {'✅ SUCCESS' if results['success'] else '❌ FAILED'}")
+    print(f"Champion changed: {'YES' if results['champion_changed'] else '❌ NO'}")
+    print(f"Iteration success: {'SUCCESS' if results['success'] else '❌ FAILED'}")
     
     if results['success']:
         if results['champion_changed']:
-            print(f"🏆 New champion: {os.path.basename(results['new_champion'])}")
+            print(f"New champion: {os.path.basename(results['new_champion'])}")
         else:
-            print(f"👑 Champion remains: {os.path.basename(current_best_model)}")
+            print(f"Champion remains: {os.path.basename(current_best_model)}")
     
     # Save results
     save_iteration_results(iteration_dir, results)
@@ -483,13 +466,13 @@ Examples:
         # Exit with appropriate code
         if results['success']:
             if results['champion_changed']:
-                print(f"\n🎉 Iteration {args.iteration_number} successful - NEW CHAMPION!")
+                print(f"\nIteration {args.iteration_number} successful - NEW CHAMPION!")
                 sys.exit(0)
             else:
-                print(f"\n✅ Iteration {args.iteration_number} successful - champion unchanged")
+                print(f"\nIteration {args.iteration_number} successful - champion unchanged")
                 sys.exit(0)
         else:
-            print(f"\n❌ Iteration {args.iteration_number} failed")
+            print(f"\nIteration {args.iteration_number} failed")
             sys.exit(1)
             
     except KeyboardInterrupt:

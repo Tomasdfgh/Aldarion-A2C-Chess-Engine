@@ -6,6 +6,23 @@ This script uses the unified parallel processing infrastructure to generate
 training data through self-play games.
 """
 
+
+'''
+  tmux new-session -d -s selfplay 'python3 selfplay_generate_data.py --total_games 84 --num_simulations 800
+  --cpu_utilization 0.9'
+
+  To monitor the session:
+  tmux attach -t selfplay
+
+  To detach (keep running in background):
+  Ctrl+b, then d
+
+  To check if it's still running:
+  tmux list-sessions
+
+  tmux kill-session -t selfplay
+'''
+
 import os
 import sys
 import argparse
@@ -79,10 +96,6 @@ def generate_selfplay_data(total_games: int, num_simulations: int,
     print(f"Training examples generated: {len(training_data)}")
     print(f"Execution time: {execution_time:.2f} seconds ({execution_time/60:.1f} minutes)")
     
-    if len(training_data) == 0:
-        print("❌ No training data generated!")
-        return None
-    
     # Save training data
     saved_file = save_training_data(training_data, process_statistics, output_filename, command_info)
     return saved_file
@@ -138,20 +151,6 @@ def main():
     parser = argparse.ArgumentParser(
         description='Unified Self-Play Training Data Generation',
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  # Auto-detect optimal configuration
-  python3 selfplay_generate_data.py --total_games 100
-  
-  # Use 90% CPU utilization
-  python3 selfplay_generate_data.py --total_games 200 --cpu_utilization 0.90
-  
-  # Manual override: max 8 processes per GPU
-  python3 selfplay_generate_data.py --total_games 500 --max_processes_per_gpu 8
-  
-  # High-intensity run with detailed statistics
-  python3 selfplay_generate_data.py --total_games 1000 --num_simulations 200 --cpu_utilization 0.95
-        """
     )
     
     parser.add_argument('--total_games', type=int, default=100,
@@ -220,11 +219,11 @@ Examples:
         )
         
         if saved_file:
-            print(f"\n✅ Self-play data generation successful!")
-            print(f"📁 Data saved to: {saved_file}")
+            print(f"\nSelf-play data generation successful!")
+            print(f"Data saved to: {saved_file}")
             sys.exit(0)
         else:
-            print(f"\n❌ Self-play data generation failed!")
+            print(f"\nSelf-play data generation failed!")
             sys.exit(1)
             
     except KeyboardInterrupt:

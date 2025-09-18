@@ -187,7 +187,7 @@ def expand_node(node, model, device, game_history=None, add_noise=False):
 
 def simulate(node, model, device, game_history=None):
 	"""
-	Get value from neural network (no rollout needed with strong neural network)
+	Get value from neural network
 	"""
 	if node.is_terminal():
 		board = chess.Board(node.state)
@@ -209,9 +209,6 @@ def simulate(node, model, device, game_history=None):
 		
 		_, value = model(input_tensor)
 		value = value.squeeze(0).item()
-		
-		# Model outputs value from side-to-move perspective (matches training targets)
-		# No flipping needed - value is already from current player's perspective
 	
 	return value
 

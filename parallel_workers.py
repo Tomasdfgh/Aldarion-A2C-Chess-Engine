@@ -420,7 +420,7 @@ def play_single_evaluation_game(white_model, black_model, num_simulations: int, 
         # Determine game result
         if board.is_checkmate():
             # Winner gets +1, loser gets -1
-            result = -1.0 if board.turn else 1.0  # If White's turn -> White checkmated -> Black wins
+            result = -1.0 if board.turn else 1.0
             result_str = "Black wins" if result == -1.0 else "White wins"
         elif board.is_stalemate() or board.is_insufficient_material() or \
              board.is_seventyfive_moves() or board.is_fivefold_repetition():
