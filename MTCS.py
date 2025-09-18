@@ -155,9 +155,6 @@ def expand_node(node, model, device, game_history=None, add_noise=False):
 		# Convert policy logits to legal move probabilities
 		policy_dict = br.board_to_legal_policy_hash(board, policy_logits.cpu())
 	
-	# Note: Dirichlet noise is now applied separately in mcts_search before simulations
-	# This keeps the noise application consistent and exactly once per move
-	
 	# Create child nodes for each legal move
 	for move_str in policy_dict.keys():
 		move = chess.Move.from_uci(move_str)
