@@ -68,7 +68,7 @@ def evaluate_models(old_model_path: str, new_model_path: str,
     failed_games = [r for r in game_results if 'error' in r]
     
     if len(successful_games) == 0:
-        print("❌ No games completed successfully!")
+        print("No games completed successfully!")
         return {'error': 'No successful games'}
     
     # Count results from new model's perspective
@@ -273,7 +273,7 @@ Notes:
         )
         
         if 'error' in results:
-            print(f"❌ Evaluation failed: {results['error']}")
+            print(f"Evaluation failed: {results['error']}")
             sys.exit(1)
         
         # Save results
@@ -282,11 +282,11 @@ Notes:
         # Determine acceptance/rejection
         score_rate = results['score_rate']
         if score_rate > args.win_threshold:
-            print(f"\n🏆 ACCEPT NEW MODEL!")
+            print(f"\nACCEPT NEW MODEL!")
             print(f"New model score rate ({score_rate:.1f}%) exceeds threshold ({args.win_threshold}%)")
             sys.exit(0)  # Success code for acceptance
         else:
-            print(f"\n💀 REJECT NEW MODEL!")
+            print(f"\nREJECT NEW MODEL!")
             print(f"New model score rate ({score_rate:.1f}%) below threshold ({args.win_threshold}%)")
             sys.exit(1)  # Failure code for rejection
             
