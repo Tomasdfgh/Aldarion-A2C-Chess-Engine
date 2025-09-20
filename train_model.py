@@ -521,33 +521,24 @@ Examples:
             collate_fn=collate_fn
         )
     
-    # Initialize model with fixed 4,672-move policy head
+    # Initialize model
     print("Initializing model...")
     model = md.ChessNet()
-    
-    # Fixed AlphaZero policy head (8×8×73 = 4,672)
-    model.linear3 = nn.Linear(2 * 8 * 8, 4672)
     model = model.to(device)
-    print(f"Policy head size: 4,672 moves (8×8×73)")
+    print(f"Policy head size: {model.linear3.out_features} moves")
     
     # Load pretrained weights if available
     start_epoch = 0
     if args.resume:
         print(f"Resuming from checkpoint: {args.resume}")
-        checkpoint = torch.load(args.resume, map_location=device)
+        checkpoint = torch.load(args.resume, map_location=device, weights_only=False)
         model.load_state_dict(checkpoint['model_state_dict'])
         start_epoch = checkpoint['epoch']
         print(f"Resumed from epoch {start_epoch}")
     elif os.path.exists(args.model_path):
         print(f"Loading pretrained weights from {args.model_path}")
         try:
-            state_dict = torch.load(args.model_path, map_location=device)
-            # Handle potential size mismatch in policy head
-            if 'linear3.weight' in state_dict and state_dict['linear3.weight'].shape[0] != 4672:
-                print(f"Policy head size mismatch. Expected 4672, got {state_dict['linear3.weight'].shape[0]}")
-                print("Removing policy head from pretrained weights (will be randomly initialized)")
-                del state_dict['linear3.weight']
-                del state_dict['linear3.bias']
+            state_dict = torch.load(args.model_path, map_location=device, weights_only=True)
             model.load_state_dict(state_dict, strict=False)
             print("Pretrained weights loaded successfully")
         except Exception as e:
