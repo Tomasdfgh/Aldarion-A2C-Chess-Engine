@@ -168,6 +168,81 @@ def selfplay_worker_process(gpu_device: str, num_games: int, task_config: Dict[s
         )
 
 
+def get_best_move_with_tree_reuse(model, board_fen: str, num_simulations: int, device: torch.device,
+                                 game_history=None, existing_tree=None, temperature=0.0, c_puct=4.0):
+    """
+    Get the best move for a given position using MCTS with optional tree reuse
+    
+    Args:
+        model: Neural network model
+        board_fen: FEN string of current board position
+        num_simulations: Number of MCTS simulations to run
+        device: PyTorch device
+        game_history: Optional list of chess.Board objects for history
+        existing_tree: Optional existing MCTS tree to reuse/extend
+        temperature: Temperature for move selection (0.0 = deterministic)
+        c_puct: PUCT exploration constant
+    
+    Returns:
+        tuple: (best_move_uci, selected_child_node)
+    """
+    import chess
+    
+    board = chess.Board(board_fen)
+    
+    # Check if we can reuse the existing tree
+    if existing_tree is not None and existing_tree.state == board_fen:
+        # Tree matches current position - reuse it
+        root = existing_tree
+        print(f"Reusing MCTS tree (N={root.N}, children={len(root.children)})")
+    else:
+        # Create new tree or find child that matches current position
+        root = None
+        
+        if existing_tree is not None:
+            # Try to find a child that matches the current position
+            for child in existing_tree.children:
+                if child.state == board_fen:
+                    root = mt.promote_child_to_root(child)
+                    print(f"Promoting child to root (N={root.N}, children={len(root.children)})")
+                    break
+        
+        if root is None:
+            # Create fresh tree
+            root = mt.MTCSNode(
+                team=board.turn,
+                state=board_fen,
+                action=None,
+                n=0,
+                w=0.0,
+                q=0.0,
+                p=1.0
+            )
+            print("Created fresh MCTS root")
+    
+    # Run MCTS (no noise for evaluation, only for self-play training)
+    root = mt.mcts_search(root, model, num_simulations, device, game_history, add_root_noise=False, c_puct=c_puct)
+    
+    # Get move probabilities
+    move_probs = mt.get_move_probabilities(root, temperature)
+    
+    # Select best move
+    if temperature == 0.0:
+        # Deterministic: select most visited
+        best_child = max(root.children, key=lambda x: x.N)
+        best_move = best_child.action
+        selected_child = best_child
+    else:
+        # Sample from distribution
+        best_move, selected_child = mt.select_move(root, temperature)
+    
+    # Prepare selected child for reuse by promoting it to root
+    if selected_child is not None:
+        selected_child = mt.promote_child_to_root(selected_child)
+    
+    return best_move, selected_child
+
+
 def evaluation_worker_process(gpu_device: str, num_games: int, task_config: Dict[str, Any], 
                             process_id: int) -> Tuple[List, Dict]:
     """
@@ -363,7 +438,7 @@ def evaluation_worker_process(gpu_device: str, num_games: int, task_config: Dict
 def play_single_evaluation_game(white_model, black_model, num_simulations: int, device: torch.device,
                                game_id: int, white_is_new: bool, old_model_path: str, new_model_path: str) -> Dict:
     """
-    Play a single competitive game between two models
+    Play a single competitive game between two models with private MCTS trees
     
     Args:
         white_model: Model playing white
@@ -388,24 +463,45 @@ def play_single_evaluation_game(white_model, black_model, num_simulations: int, 
         game_history = []
         move_count = 0
         
+        # Initialize private MCTS trees for each model
+        white_tree = None
+        black_tree = None
+        
         while not board.is_game_over() and move_count < 800:  # Early stopping
-            # Select model based on whose turn it is
+            # Select model and tree based on whose turn it is
             current_model = white_model if board.turn else black_model
+            current_tree = white_tree if board.turn else black_tree
             current_player = "White" if board.turn else "Black"
             
+            # Print move information like in self-play
+            print(f"Game {game_id}: Move {move_count + 1}, {current_player} to move")
+            
             try:
-                # Get best move from model (deterministic for evaluation)
-                best_move, _ = mt.get_best_move(
+                # Get best move using private tree (with subtree reuse)
+                best_move, selected_child = get_best_move_with_tree_reuse(
                     model=current_model,
                     board_fen=board.fen(),
                     num_simulations=num_simulations,
                     device=device,
                     game_history=game_history,
+                    existing_tree=current_tree,
                     temperature=0.0  # Deterministic play for evaluation
                 )
                 
                 if best_move is None:
+                    print(f"Game {game_id}: No legal moves available")
                     break
+                
+                # Print selected move like in self-play
+                model_info = "New" if (board.turn and white_is_new) or (not board.turn and not white_is_new) else "Old"
+                print(f"Game {game_id}: Selected move: {best_move} ({model_info} model)")
+                print()  # Add newline between moves like self-play
+                
+                # Update the tree for the current player
+                if board.turn:  # White's turn
+                    white_tree = selected_child
+                else:  # Black's turn
+                    black_tree = selected_child
                 
                 # Apply move
                 move_obj = chess.Move.from_uci(best_move)

@@ -77,17 +77,15 @@ def board_to_full_alphazero_input(current_board, game_history=None):
 		if history_index >= 0:
 			last_8_positions.append(full_history[history_index])
 		else:
-			last_8_positions.append(None)  # Will be zero-padded
+			last_8_positions.append(None)
 	
 	# Create arrays for each time step (112 planes total)
 	position_arrays = []
 	for i, board_pos in enumerate(last_8_positions):
 		if board_pos is not None:
-			# Real position with proper history slice
 			relevant_history = full_history[:len(full_history)-8+i+1]
 			position_array = board_to_array(board_pos.fen(), board_pos.turn, relevant_history)
 		else:
-			# Zero padding for missing history
 			position_array = torch.zeros((14, 8, 8))
 		position_arrays.append(position_array)
 	

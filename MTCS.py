@@ -4,7 +4,6 @@ import torch
 import numpy as np
 import math
 import random
-import chess_test
 
 # Global variable to store the last game's ending reason for stats collection
 last_game_ending_reason = None
@@ -398,7 +397,6 @@ def run_game(model, temperature, num_simulations, device, c_puct=4.0, current_ga
 	
 	# Initialize game
 	board = chess.Board()
-	#board = chess_test.chess_960()
 	game_history = []  # Keep Board objects for NN encoding
 	training_data = []
 	
@@ -556,6 +554,6 @@ def get_best_move(model, board_fen, num_simulations, device, game_history=None, 
 		best_move = best_child.action
 	else:
 		# Sample from distribution
-		best_move, _ = select_move(root, temperature)  # Ignore child node for evaluation
+		best_move, _ = select_move(root, temperature)
 	
 	return best_move, move_probs

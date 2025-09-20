@@ -16,7 +16,7 @@ from datetime import datetime
 from typing import Dict, List
 
 # Import unified modules
-from parallel_utils import run_parallel_task_execution, final_gpu_cleanup
+from parallel_utils import run_parallel_task_execution
 from parallel_workers import evaluation_worker_process
 
 
@@ -241,18 +241,6 @@ Notes:
     
     if not os.path.exists(args.new_model):
         print(f"Error: New model file not found: {args.new_model}")
-        sys.exit(1)
-    
-    if args.num_games <= 0:
-        print("Error: num_games must be positive")
-        sys.exit(1)
-    
-    if not (0.0 <= args.cpu_utilization <= 1.0):
-        print("Error: cpu_utilization must be between 0.0 and 1.0")
-        sys.exit(1)
-    
-    if not (0.0 <= args.win_threshold <= 100.0):
-        print("Error: win_threshold must be between 0.0 and 100.0")
         sys.exit(1)
     
     # Create necessary directories

@@ -10,7 +10,7 @@ Architecture:
 - Converts FEN strings to 119-channel input tensors
 - Converts move probability dictionaries to policy vectors  
 - Trains using AlphaZero loss function (policy + value)
-- Supports multiple data files, model checkpointing, and tensorboard logging
+- Supports multiple data files and tensorboard logging
 """
 
 import os
@@ -45,12 +45,28 @@ class ChessTrainingDataset(Dataset):
     - game_outcome: Float value (-1 to 1, from perspective of player to move)
     """
     
-    def __init__(self, training_data: List[Tuple[str, List[str], Dict, float]]):
-        self.training_data = training_data
-        self.num_moves = 4672  # AlphaZero 8×8×73 = 4,672 moves
+    def __init__(self, data_files: List[str]):
+        self.num_moves = 4672
         
-        print(f"Dataset initialized with {len(training_data)} training examples")
-        print(f"Using AlphaZero 8×8×73 policy head: {self.num_moves} moves")
+        # Load training data from pickle files
+        all_training_data = []
+        for data_file in data_files:
+            if not os.path.exists(data_file):
+                print(f"Error: Could not find {data_file}")
+                continue
+                
+            print(f"Loading training data from {data_file}...")
+            try:
+                with open(data_file, 'rb') as f:
+                    data = pickle.load(f)
+                all_training_data.extend(data)
+                print(f"  Loaded {len(data)} examples from {data_file}")
+            except Exception as e:
+                print(f"  Error loading {data_file}: {e}")
+                continue
+        
+        self.training_data = all_training_data
+        print(f"Dataset initialized with {len(self.training_data)} training examples")
     
     def __len__(self):
         return len(self.training_data)
@@ -60,7 +76,7 @@ class ChessTrainingDataset(Dataset):
         
         # Convert board history list to chess.Board objects for board_reader
         game_history = []
-        for fen in history_fens:  # Previous positions only (current not included)
+        for fen in history_fens:
             game_history.append(chess.Board(fen))
         
         # Convert current board with history to 119-channel input tensor
@@ -68,15 +84,14 @@ class ChessTrainingDataset(Dataset):
         board_tensor = br.board_to_full_alphazero_input(current_board, game_history)
         
         # Convert move probabilities to 4,672-dimensional policy vector
-        policy_vector = torch.zeros(4672, dtype=torch.float32)
+        policy_vector = torch.zeros(4672, dtype=torch.float32).reshape(8, 8, 73)
         for move, prob in move_probs.items():
             try:
                 r, c, pl = br.uci_to_policy_index(str(move))
-                idx = (r * 8 + c) * 73 + pl  # C-order flattening of (8, 8, 73)
-                policy_vector[idx] = float(prob)
+                policy_vector[r, c, pl] = float(prob)
             except:
-                # Skip invalid moves
                 continue
+        policy_vector = policy_vector.reshape(-1)
         
         # Defensive normalization in case move_probs aren't perfectly normalized
         s = policy_vector.sum()
@@ -87,10 +102,8 @@ class ChessTrainingDataset(Dataset):
         board = chess.Board(board_fen)
         legal_mask = br.create_legal_move_mask(board).flatten()  # Flatten to 4672, bool type
         
-        # Safeguard: Skip positions with no legal moves (shouldn't happen in training data)
+        #Check to skip data point that is a terminal state
         if not legal_mask.any():
-            # This is a terminal position (mate/stalemate) - skip it
-            # Return None to signal this sample should be skipped
             return None
         
         # Game outcome as value target
@@ -112,53 +125,6 @@ def collate_fn(batch):
     return torch.utils.data.dataloader.default_collate(batch)
 
 
-def load_training_data(data_files: List[str]) -> List[Tuple[str, List[str], Dict, float]]:
-    """
-    Load and combine training data from multiple pickle files
-    
-    Args:
-        data_files: List of pickle file paths (automatically checks training_data/ directory)
-    
-    Returns:
-        Combined training data list
-    """
-    all_training_data = []
-    
-    for data_file in data_files:
-        # Check if file exists as-is, otherwise look in training_data directory
-        if os.path.exists(data_file):
-            file_path = data_file
-        elif os.path.exists(os.path.join("training_data", data_file)):
-            file_path = os.path.join("training_data", data_file)
-        elif os.path.exists(os.path.join("training_data", os.path.basename(data_file))):
-            file_path = os.path.join("training_data", os.path.basename(data_file))
-        else:
-            print(f"  Error: Could not find {data_file} in current directory or training_data/")
-            continue
-            
-        print(f"Loading training data from {file_path}...")
-        
-        try:
-            with open(file_path, 'rb') as f:
-                data = pickle.load(f)
-            
-            if isinstance(data, list) and len(data) > 0:
-                # Check data format
-                sample = data[0]
-                if len(sample) == 4 and isinstance(sample[0], str):
-                    all_training_data.extend(data)
-                    print(f"  Loaded {len(data)} examples from {file_path}")
-                else:
-                    print(f"  Warning: Unexpected data format in {data_file} (expected 4-tuple or 3-tuple, got {len(sample)}-tuple)")
-            else:
-                print(f"  Warning: Empty or invalid data in {data_file}")
-                
-        except Exception as e:
-            print(f"  Error loading {file_path}: {e}")
-            continue
-    
-    print(f"Total training examples loaded: {len(all_training_data)}")
-    return all_training_data
 
 
 def compute_loss(model_output, targets, legal_masks, policy_weight=1.0, value_weight=1.0):
@@ -180,7 +146,7 @@ def compute_loss(model_output, targets, legal_masks, policy_weight=1.0, value_we
     
     # Simple approach: just mask with reasonable negative value and use standard cross-entropy
     masked_logits = policy_logits.clone()
-    masked_logits[~legal_masks.bool()] = -100.0  # Large enough to be ignored
+    masked_logits[~legal_masks.bool()] = -1000.0  # Large enough to be ignored
     
     # Use KL divergence which handles probability distributions well
     log_probs = F.log_softmax(masked_logits, dim=1)
@@ -190,7 +156,6 @@ def compute_loss(model_output, targets, legal_masks, policy_weight=1.0, value_we
     normalized_target = target_policy / (target_sum + 1e-8)
     
     # KL divergence: sum(target * (log(target) - log(pred)))
-    # For cross-entropy, we just need the -sum(target * log(pred)) part
     policy_loss = -(normalized_target * log_probs).sum(dim=1).mean()
     
     # Value loss: MSE between game outcome and predicted value
@@ -324,21 +289,6 @@ def validate_model(model, dataloader, device):
     
     return metrics
 
-
-def save_model_checkpoint(model, optimizer, epoch, metrics, checkpoint_path):
-    """Save model checkpoint with training state"""
-    checkpoint = {
-        'epoch': epoch,
-        'model_state_dict': model.state_dict(),
-        'optimizer_state_dict': optimizer.state_dict(),
-        'metrics': metrics,
-        'timestamp': datetime.now().strftime('%Y%m%d_%H%M%S')
-    }
-    
-    torch.save(checkpoint, checkpoint_path)
-    print(f"Model checkpoint saved to {checkpoint_path}")
-
-
 def create_alphazero_lr_scheduler(optimizer, total_epochs):
     """
     Create AlphaZero learning rate scheduler
@@ -413,8 +363,8 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Train on single data file (automatically finds in training_data/)
-  python3 train_model.py --data parallel_training_data_20241201.pkl
+  # Train on single data file
+  python3 train_model.py --data training_data/parallel_training_data_20241201.pkl
   
   # Train on multiple files with custom parameters (SGD default)
   python3 train_model.py --data file1.pkl file2.pkl --epochs 20 --lr 0.2
@@ -422,13 +372,10 @@ Examples:
   # Use Adam optimizer instead of SGD
   python3 train_model.py --data file1.pkl --optimizer adam --lr 0.001
   
-  # Resume training from checkpoint
-  python3 train_model.py --data latest.pkl --resume model_checkpoint_epoch_10.pth
   
   # Training with validation split
   python3 train_model.py --data large_dataset.pkl --validation_split 0.1
   
-  # Files are automatically searched in training_data/ directory if not found in current dir
         """
     )
     
@@ -450,22 +397,10 @@ Examples:
                         help='Learning rate schedule: alphazero, step, or none (default: alphazero)')
     parser.add_argument('--validation_split', type=float, default=0.1,
                         help='Fraction of data for validation (default: 0.1)')
-    parser.add_argument('--resume', type=str, default=None,
-                        help='Resume training from checkpoint')
     parser.add_argument('--model_path', type=str, default='model_weights/model_weights.pth',
                         help='Path to initial model weights (default: model_weights/model_weights.pth)')
-    parser.add_argument('--output_dir', type=str, default='.',
-                        help='Output directory for checkpoints and plots (default: current dir)')
     
     args = parser.parse_args()
-    
-    # Adjust default learning rate based on optimizer if not explicitly set
-    if args.lr == 0.2 and args.optimizer == 'adam':
-        args.lr = 0.001  # Adam's typical learning rate
-        print("Auto-adjusted learning rate to 0.001 for Adam optimizer")
-    elif args.lr == 0.001 and args.optimizer == 'sgd':
-        args.lr = 0.2  # AlphaZero's SGD learning rate
-        print("Auto-adjusted learning rate to 0.2 for SGD optimizer")
     
     # Setup
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -476,16 +411,9 @@ Examples:
     print(f"Learning rate: {args.lr}")
     print(f"LR Schedule: {args.lr_schedule}")
     
-    # Load training data
+    # Create dataset (loads training data internally)
     print("Loading training data...")
-    training_data = load_training_data(args.data)
-    
-    if len(training_data) == 0:
-        print("No training data loaded. Exiting.")
-        sys.exit(1)
-    
-    # Create dataset
-    dataset = ChessTrainingDataset(training_data)
+    dataset = ChessTrainingDataset(args.data)
     
     # Split into train/validation
     if args.validation_split > 0:
@@ -525,17 +453,9 @@ Examples:
     print("Initializing model...")
     model = md.ChessNet()
     model = model.to(device)
-    print(f"Policy head size: {model.linear3.out_features} moves")
     
     # Load pretrained weights if available
-    start_epoch = 0
-    if args.resume:
-        print(f"Resuming from checkpoint: {args.resume}")
-        checkpoint = torch.load(args.resume, map_location=device, weights_only=False)
-        model.load_state_dict(checkpoint['model_state_dict'])
-        start_epoch = checkpoint['epoch']
-        print(f"Resumed from epoch {start_epoch}")
-    elif os.path.exists(args.model_path):
+    if os.path.exists(args.model_path):
         print(f"Loading pretrained weights from {args.model_path}")
         try:
             state_dict = torch.load(args.model_path, map_location=device, weights_only=True)
@@ -573,13 +493,6 @@ Examples:
         scheduler = optim.lr_scheduler.LambdaLR(optimizer, lambda epoch: 1.0)
         print("Using constant learning rate (no schedule)")
     
-    # Resume optimizer state if checkpoint provided
-    if args.resume and 'optimizer_state_dict' in checkpoint:
-        try:
-            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            print("Optimizer state resumed")
-        except Exception as e:
-            print(f"Could not resume optimizer state: {e}")
     
     # Training loop
     print(f"\nStarting training for {args.epochs} epochs...")
@@ -590,10 +503,10 @@ Examples:
     val_metrics_history = []
     best_val_loss = float('inf')
     patience_counter = 0
-    patience = 10  # Early stopping patience
+    patience = 10
     
-    for epoch in range(start_epoch + 1, start_epoch + args.epochs + 1):
-        print(f"\nEpoch {epoch}/{start_epoch + args.epochs}")
+    for epoch in range(1, args.epochs + 1):
+        print(f"\nEpoch {epoch}/{args.epochs}")
         print("-" * 50)
         
         # Training
@@ -654,12 +567,4 @@ Examples:
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except KeyboardInterrupt:
-        print("\nTraining interrupted by user")
-        sys.exit(1)
-    except Exception as e:
-        print(f"Training failed with error: {e}")
-        traceback.print_exc()
-        sys.exit(1)
+    main()
