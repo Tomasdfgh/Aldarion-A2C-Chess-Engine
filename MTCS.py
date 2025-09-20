@@ -4,9 +4,11 @@ import torch
 import numpy as np
 import math
 import random
+import chess_test
 
 # Global variable to store the last game's ending reason for stats collection
 last_game_ending_reason = None
+
 
 
 class MTCSNode:
@@ -189,7 +191,9 @@ def simulate(node, model, device, game_history=None):
 	if node.is_terminal():
 		board = chess.Board(node.state)
 		if board.is_checkmate():
-			return -1.0  # side to move is checkmated
+			# The side to move is checkmated, so the player who made the move (node.team) wins
+			# Return +1.0 for the winning side (the one who made the move to reach this state)
+			return 1.0  # Player who made the move wins
 		else:
 			# Draw
 			return 0.0
@@ -227,14 +231,14 @@ def backpropagate(node, value):
 def get_alphazero_temperature(move_number, base_temperature=1.0):
 	"""
 	Get temperature with two-phase schedule:
-	- Temperature = base_temperature for moves 1-60
-	- Temperature = 0.0 after move 60
+	- Temperature = base_temperature for moves 1-30
+	- Temperature = 0.0 after move 30
 	
 	Args:
 		move_number: Chess move number (not plies), starts from 1
 		base_temperature: Base temperature to use during exploration phase
 	"""
-	if move_number <= 60:
+	if move_number <= 30:
 		return base_temperature
 	else:
 		return 0.0
@@ -394,6 +398,7 @@ def run_game(model, temperature, num_simulations, device, c_puct=4.0, current_ga
 	
 	# Initialize game
 	board = chess.Board()
+	#board = chess_test.chess_960()
 	game_history = []  # Keep Board objects for NN encoding
 	training_data = []
 	
