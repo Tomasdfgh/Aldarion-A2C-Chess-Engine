@@ -41,7 +41,7 @@ def generate_selfplay_data(total_games: int, num_simulations: int,
                           c_puct: float = 4.0,
                           cpu_utilization: float = 0.90,
                           max_processes_per_gpu: int = None,
-                          output_filename: str = None,
+                          output_dir: str = None,
                           command_info: Dict = None) -> str:
     """
     Generate self-play training data using unified parallel processing
@@ -54,7 +54,7 @@ def generate_selfplay_data(total_games: int, num_simulations: int,
         c_puct: MCTS exploration parameter (default: 4.0)
         cpu_utilization: Target CPU utilization (0.0 to 1.0)
         max_processes_per_gpu: Manual override for max processes per GPU
-        output_filename: Optional output filename
+        output_dir: Optional output directory (default: training_data/)
         command_info: Dict containing command and arguments used
     
     Returns:
@@ -97,36 +97,44 @@ def generate_selfplay_data(total_games: int, num_simulations: int,
     print(f"Execution time: {execution_time:.2f} seconds ({execution_time/60:.1f} minutes)")
     
     # Save training data
-    saved_file = save_training_data(training_data, process_statistics, output_filename, command_info)
+    saved_file = save_training_data(training_data, process_statistics, output_dir, command_info)
     return saved_file
 
 
-def save_training_data(training_data: List, process_stats: List, output_filename: str = None, command_info: Dict = None) -> str:
+def save_training_data(training_data: List, process_stats: List, output_dir: str = None, command_info: Dict = None) -> str:
     """
     Save training data and process statistics
     
     Args:
         training_data: List of training examples
         process_stats: List of process statistics
-        output_filename: Optional output filename
+        output_dir: Optional output directory (default: training_data/)
         command_info: Dict containing command and arguments used
     
     Returns:
         Filename where data was saved
     """
-    if output_filename is None:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_filename = f"unified_selfplay_data_{timestamp}.pkl"
+    # Generate filename with timestamp
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_filename = f"unified_selfplay_data_{timestamp}.pkl"
+    
+    # Set default directories if not specified
+    if output_dir is None:
+        main_data_dir = "training_data"
+        stats_data_dir = "training_data_stats"
+    else:
+        main_data_dir = output_dir
+        stats_data_dir = output_dir
     
     # Create directories if they don't exist
-    os.makedirs("training_data", exist_ok=True)
-    os.makedirs("training_data_stats", exist_ok=True)
+    os.makedirs(main_data_dir, exist_ok=True)
+    os.makedirs(stats_data_dir, exist_ok=True)
     
     # Generate full paths with proper organization
-    main_data_path = os.path.join("training_data", output_filename)
+    main_data_path = os.path.join(main_data_dir, output_filename)
     base_filename = os.path.splitext(output_filename)[0]
     stats_filename = f"{base_filename}_stats.pkl"
-    stats_path = os.path.join("training_data_stats", stats_filename)
+    stats_path = os.path.join(stats_data_dir, stats_filename)
     
     # Save training data
     with open(main_data_path, 'wb') as f:
@@ -168,7 +176,7 @@ def main():
     parser.add_argument('--max_processes_per_gpu', type=int, default=None,
                         help='Manual override for max processes per GPU (auto-detect if not specified)')
     parser.add_argument('--output', type=str, default=None,
-                        help='Output filename for training data')
+                        help='Output directory for training data (default: training_data/)')
     
     args = parser.parse_args()
     
@@ -214,7 +222,7 @@ def main():
             model_path=args.model_path,
             cpu_utilization=args.cpu_utilization,
             max_processes_per_gpu=args.max_processes_per_gpu,
-            output_filename=args.output,
+            output_dir=args.output,
             command_info=command_info
         )
         

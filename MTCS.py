@@ -34,13 +34,13 @@ class MTCSNode:
 		board = chess.Board(self.state)
 		return board.is_game_over()
 
-def calculate_ucb(parent, child, c_puct=4.0):
+def calculate_ucb(parent, child, c_puct=2.0):
 	"""Calculate UCB1 score with PUCT formula"""
 	q = child.Q  # 0 when N==0
 	u = c_puct * child.P * math.sqrt(max(1, parent.N)) / (1 + child.N)
 	return q + u
 
-def select_node(root, c_puct=4.0):
+def select_node(root, c_puct=2.0):
 	"""
 	Traverse tree using UCB to find leaf node for expansion
 	Returns the leaf node to expand
@@ -242,7 +242,7 @@ def get_alphazero_temperature(move_number, base_temperature=1.0):
 	else:
 		return 0.0
 
-def mcts_search(root, model, num_simulations, device, game_history=None, add_root_noise=False, c_puct=4.0):
+def mcts_search(root, model, num_simulations, device, game_history=None, add_root_noise=False, c_puct=2.0):
 	"""
 	Run MCTS for num_simulations iterations
 	Returns root node with updated statistics
@@ -368,7 +368,7 @@ def promote_child_to_root(child_node):
 	# This child becomes the new root with all its accumulated statistics
 	return child_node
 
-def run_game(model, temperature, num_simulations, device, c_puct=4.0, current_game=None, total_games=None, process_id=None):
+def run_game(model, num_simulations, device, temperature=1.0, c_puct=2.0, current_game=None, total_games=None, process_id=None):
 	"""
 	Play a full game using MCTS with AlphaZero parameters, collecting training data
 	Returns list of (board_state, history_fens, move_probabilities, game_outcome) tuples
@@ -378,7 +378,7 @@ def run_game(model, temperature, num_simulations, device, c_puct=4.0, current_ga
 		temperature: Base temperature for move selection
 		num_simulations: Number of MCTS simulations per move
 		device: PyTorch device
-		c_puct: PUCT exploration constant (default: 4.0, typical range: 1.0-2.5 for chess)
+		c_puct: PUCT exploration constant (default: 2.0, typical range: 1.0-2.5 for chess)
 		current_game: Current game number (1-indexed, optional)
 		total_games: Total number of games in this process (optional)
 		process_id: Process identifier (optional)
@@ -512,7 +512,7 @@ def get_last_game_ending_reason():
 	global last_game_ending_reason
 	return last_game_ending_reason
 
-def get_best_move(model, board_fen, num_simulations, device, game_history=None, temperature=0.0, c_puct=4.0):
+def get_best_move(model, board_fen, num_simulations, device, game_history=None, temperature=0.0, c_puct=2.0):
 	"""
 	Get the best move for a given position using MCTS
 	
@@ -523,7 +523,7 @@ def get_best_move(model, board_fen, num_simulations, device, game_history=None, 
 		device: PyTorch device
 		game_history: Optional list of chess.Board objects for history
 		temperature: Temperature for move selection (0.0 = deterministic)
-		c_puct: PUCT exploration constant (default: 4.0, typical range: 1.0-2.5 for chess)
+		c_puct: PUCT exploration constant (default: 2.0, typical range: 1.0-2.5 for chess)
 	
 	Returns:
 		tuple: (best_move_uci, move_probabilities_dict)

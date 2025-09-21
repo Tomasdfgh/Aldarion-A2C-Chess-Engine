@@ -399,6 +399,8 @@ Examples:
                         help='Fraction of data for validation (default: 0.1)')
     parser.add_argument('--model_path', type=str, default='model_weights/model_weights.pth',
                         help='Path to initial model weights (default: model_weights/model_weights.pth)')
+    parser.add_argument('--output', type=str, default=None,
+                        help='Output directory for training plots (default: training_results/)')
     
     args = parser.parse_args()
     
@@ -547,10 +549,16 @@ Examples:
     
     # Plot training curves
     if len(train_metrics_history) > 1:
-        os.makedirs("training_results", exist_ok=True)
+        # Set output directory for plots
+        if args.output is None:
+            plot_dir = "training_results"
+        else:
+            plot_dir = args.output
+        
+        os.makedirs(plot_dir, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         plot_filename = f"training_curves_{timestamp}.png"
-        plot_path = os.path.join("training_results", plot_filename)
+        plot_path = os.path.join(plot_dir, plot_filename)
         plot_training_metrics(train_metrics_history, val_metrics_history, plot_path)
     
     # Training summary

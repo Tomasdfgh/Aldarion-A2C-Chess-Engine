@@ -36,8 +36,8 @@ def selfplay_worker_process(gpu_device: str, num_games: int, task_config: Dict[s
     
     try:
         num_simulations = task_config['num_simulations']
-        temperature = task_config['temperature']
-        c_puct = task_config.get('c_puct', 4.0)  # Default to 4.0 if not specified
+        temperature = task_config.get('temperature', 1.0)  # Default to 1.0 for self-play
+        c_puct = task_config.get('c_puct', 2.0)  # Default to 2.0 if not specified
         model_path = task_config['model_path']
         
         print(f"Process {process_id}: Starting on {gpu_device} with {num_games} games")
@@ -169,7 +169,7 @@ def selfplay_worker_process(gpu_device: str, num_games: int, task_config: Dict[s
 
 
 def get_best_move_with_tree_reuse(model, board_fen: str, num_simulations: int, device: torch.device,
-                                 game_history=None, existing_tree=None, temperature=0.0, c_puct=4.0):
+                                 game_history=None, existing_tree=None, temperature=0.0, c_puct=2.0):
     """
     Get the best move for a given position using MCTS with optional tree reuse
     
@@ -329,7 +329,10 @@ def evaluation_worker_process(gpu_device: str, num_games: int, task_config: Dict
                     game_id=game_id,
                     white_is_new=white_is_new,
                     old_model_path=old_model_path,
-                    new_model_path=new_model_path
+                    new_model_path=new_model_path,
+                    process_id=process_id,
+                    game_num=game_num + 1,
+                    total_games=num_games
                 )
                 
                 game_results.append(game_result)
@@ -436,7 +439,8 @@ def evaluation_worker_process(gpu_device: str, num_games: int, task_config: Dict
 
 
 def play_single_evaluation_game(white_model, black_model, num_simulations: int, device: torch.device,
-                               game_id: int, white_is_new: bool, old_model_path: str, new_model_path: str) -> Dict:
+                               game_id: int, white_is_new: bool, old_model_path: str, new_model_path: str,
+                               process_id: int, game_num: int, total_games: int) -> Dict:
     """
     Play a single competitive game between two models with private MCTS trees
     
@@ -458,10 +462,16 @@ def play_single_evaluation_game(white_model, black_model, num_simulations: int, 
     start_time = time.time()
     
     try:
-        # Play the game
-        board = chess.Board()
+        # Initialize with Chess960 (Fischer Random) starting position
+        import random
+        chess960_position = random.randint(0, 959)  # 960 possible positions
+        board = chess.Board.from_chess960_pos(chess960_position)
         game_history = []
         move_count = 0
+        
+        print(f"Process {process_id}: Game {game_num}/{total_games}: Starting Chess960 position {chess960_position}")
+        print(f"Process {process_id}: Game {game_num}/{total_games}: Starting FEN: {board.fen()}")
+        print()
         
         # Initialize private MCTS trees for each model
         white_tree = None
@@ -474,7 +484,7 @@ def play_single_evaluation_game(white_model, black_model, num_simulations: int, 
             current_player = "White" if board.turn else "Black"
             
             # Print move information like in self-play
-            print(f"Game {game_id}: Move {move_count + 1}, {current_player} to move")
+            print(f"Process {process_id}: Game {game_num}/{total_games}, Move {move_count + 1}, {current_player} to move")
             
             try:
                 # Get best move using private tree (with subtree reuse)
@@ -489,12 +499,12 @@ def play_single_evaluation_game(white_model, black_model, num_simulations: int, 
                 )
                 
                 if best_move is None:
-                    print(f"Game {game_id}: No legal moves available")
+                    print(f"Process {process_id}: Game {game_num}/{total_games}: No legal moves available")
                     break
                 
                 # Print selected move like in self-play
                 model_info = "New" if (board.turn and white_is_new) or (not board.turn and not white_is_new) else "Old"
-                print(f"Game {game_id}: Selected move: {best_move} ({model_info} model)")
+                print(f"Process {process_id}: Game {game_num}/{total_games}: Selected move: {best_move} ({model_info} model)")
                 print()  # Add newline between moves like self-play
                 
                 # Update the tree for the current player
@@ -510,7 +520,7 @@ def play_single_evaluation_game(white_model, black_model, num_simulations: int, 
                 move_count += 1
                 
             except Exception as e:
-                print(f"Game {game_id}: Error during {current_player} move: {e}")
+                print(f"Process {process_id}: Game {game_num}/{total_games}: Error during {current_player} move: {e}")
                 break
         
         # Determine game result
@@ -542,11 +552,11 @@ def play_single_evaluation_game(white_model, black_model, num_simulations: int, 
             'white_is_new': white_is_new
         }
         
-        print(f"Game {game_id}: {result_str} in {move_count} moves ({game_time:.1f}s)")
+        print(f"Process {process_id}: Game {game_num}/{total_games}: {result_str} in {move_count} moves ({game_time:.1f}s)")
         return game_result
         
     except Exception as e:
-        print(f"Game {game_id}: Fatal error: {e}")
+        print(f"Process {process_id}: Game {game_num}/{total_games}: Fatal error: {e}")
         traceback.print_exc()
         return {
             'game_id': game_id,

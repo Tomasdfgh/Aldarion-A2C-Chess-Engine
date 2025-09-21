@@ -1,485 +1,411 @@
 #!/usr/bin/env python3
 """
-Single AlphaZero Iteration Runner for Aldarion Chess Engine
+Main Training Pipeline for Aldarion Chess Engine
 
-This script runs one complete AlphaZero iteration:
-1. Generate self-play training data using current best model
-2. Train new neural network on that data
-3. Evaluate new model against current best model
-4. Accept/reject new model based on win rate
-5. Save results and update champion
+This script runs a complete training iteration:
+1. Analyzes previous iteration results
+2. Sets up new iteration folder
+3. Runs self-play data generation
+4. Trains new model on the data  
+5. Evaluates new model vs current best
 
-Perfect for running controlled, single iterations with full logging.
+Each iteration builds on the previous one's results.
 """
 
 import os
 import sys
-import subprocess
-import argparse
-import time
 import shutil
-import json
-from datetime import datetime
+import re
+import argparse
 from pathlib import Path
-import gc
+
+# Import the main functions from existing scripts
+from selfplay_generate_data import generate_selfplay_data
+from evaluate_models import evaluate_models
+import train_model
 
 
-def run_command_with_output(command, description):
+def find_latest_iteration():
     """
-    Run a subprocess command with real-time output and error handling
+    Find the highest numbered iteration folder
+    
+    Returns:
+        int: Latest iteration number, or raises error if none found
+    """
+    print("="*60)
+    print("SCANNING FOR PREVIOUS ITERATIONS")
+    print("="*60)
+    
+    iterations_dir = Path("Iterations")
+    if not iterations_dir.exists():
+        print("Error: Iterations/ directory not found!")
+        sys.exit(1)
+    
+    # Find all iteration folders
+    iteration_folders = []
+    for folder in iterations_dir.iterdir():
+        if folder.is_dir() and folder.name.startswith("Iteration_"):
+            try:
+                num = int(folder.name.split("_")[1])
+                iteration_folders.append(num)
+                print(f"Found: {folder.name}")
+            except (IndexError, ValueError):
+                print(f"Skipping invalid folder: {folder.name}")
+    
+    if not iteration_folders:
+        print("Error: No previous iteration folders found!")
+        print("Expected at least one folder like 'Iteration_0'")
+        sys.exit(1)
+    
+    latest_iteration = max(iteration_folders)
+    print(f"Latest iteration: Iteration_{latest_iteration}")
+    return latest_iteration
+
+
+def analyze_previous_evaluation(prev_iteration_num):
+    """
+    Analyze the evaluation results from the previous iteration
     
     Args:
-        command: Command string to execute
-        description: Human-readable description
+        prev_iteration_num: Previous iteration number
+        
+    Returns:
+        bool: True if new model should be accepted, False otherwise
+    """
+    print("\n" + "="*60) 
+    print("ANALYZING PREVIOUS ITERATION RESULTS")
+    print("="*60)
+    
+    prev_folder = Path(f"Iterations/Iteration_{prev_iteration_num}")
+    print(f"Checking folder: {prev_folder}")
+    
+    # Find evaluation file
+    eval_files = list(prev_folder.glob("evaluation_*.pkl"))
+    if not eval_files:
+        print("Error: No evaluation file found in previous iteration!")
+        sys.exit(1)
+    
+    if len(eval_files) > 1:
+        print("Warning: Multiple evaluation files found. Using the first one.")
+    
+    eval_file = eval_files[0]
+    print(f"Found evaluation file: {eval_file.name}")
+    
+    # Run analyze_stats.py to get the recommendation
+    print("Running analysis...")
+    import subprocess
+    result = subprocess.run([
+        "python3", "analyze_stats.py", str(eval_file)
+    ], capture_output=True, text=True)
+    
+    if result.returncode != 0:
+        print("Error running analyze_stats.py:")
+        print(result.stderr)
+        sys.exit(1)
+    
+    # Parse the output for recommendation
+    output = result.stdout
+    print("Analysis output:")
+    print("-" * 40)
+    # Print first 10 lines to show the recommendation
+    lines = output.split('\n')
+    for line in lines[:15]:
+        print(line)
+    print("-" * 40)
+    
+    # Check for acceptance
+    if "ACCEPT NEW MODEL!" in output:
+        print("RESULT: New model was ACCEPTED in previous iteration")
+        return True
+    elif "REJECT NEW MODEL!" in output:
+        print("RESULT: New model was REJECTED in previous iteration") 
+        return False
+    else:
+        print("Error: Could not determine evaluation result!")
+        print("Expected to find 'ACCEPT NEW MODEL!' or 'REJECT NEW MODEL!'")
+        sys.exit(1)
+
+
+def setup_new_iteration(prev_iteration_num, accept_new_model):
+    """
+    Create new iteration folder and copy appropriate model
+    
+    Args:
+        prev_iteration_num: Previous iteration number
+        accept_new_model: Whether to use new model as base
+        
+    Returns:
+        int: New iteration number
+    """
+    new_iteration_num = prev_iteration_num + 1
+    
+    print("\n" + "="*60)
+    print("SETTING UP NEW ITERATION")
+    print("="*60)
+    
+    prev_folder = Path(f"Iterations/Iteration_{prev_iteration_num}")
+    new_folder = Path(f"Iterations/Iteration_{new_iteration_num}")
+    
+    # Create new iteration folder
+    print(f"Creating new folder: {new_folder}")
+    new_folder.mkdir(exist_ok=True)
+    
+    # Determine which model to copy as the base
+    if accept_new_model:
+        source_model = prev_folder / f"new_model_{prev_iteration_num}.pth"
+        print(f"Copying NEW model as base: {source_model.name}")
+    else:
+        source_model = prev_folder / "model_weights.pth" 
+        print(f"Keeping OLD model as base: {source_model.name}")
+    
+    # Copy the selected model as the new base
+    target_model = new_folder / "model_weights.pth"
+    
+    if not source_model.exists():
+        print(f"Error: Source model not found: {source_model}")
+        sys.exit(1)
+    
+    print(f"Copying: {source_model} → {target_model}")
+    shutil.copy2(source_model, target_model)
+    
+    # Verify the copy
+    if target_model.exists():
+        source_size = source_model.stat().st_size
+        target_size = target_model.stat().st_size
+        print(f"Copy successful! Size: {target_size:,} bytes (original: {source_size:,})")
+    else:
+        print("Copy failed!")
+        sys.exit(1)
+    
+    print(f"New iteration {new_iteration_num} ready with base model: model_weights.pth")
+    return new_iteration_num
+
+
+def run_selfplay_phase(iteration_folder, total_games, num_simulations):
+    """
+    Run self-play data generation phase
+    
+    Args:
+        iteration_folder: Path to current iteration folder
+        total_games: Number of games to generate
+        num_simulations: MCTS simulations per move
     
     Returns:
-        tuple: (success: bool, return_code: int)
+        str: Path to generated training data file
     """
-    print(f"\n{'='*60}")
-    print(f"STEP: {description}")
-    print(f"{'='*60}")
-    print(f"Running: {command}")
-    print()
+    print("\n" + "="*60)
+    print("PHASE 1: SELF-PLAY DATA GENERATION")
+    print("="*60)
     
-    try:
-        # Run command with real-time output
-        process = subprocess.Popen(
-            command, 
-            shell=True, 
-            stdout=subprocess.PIPE, 
-            stderr=subprocess.STDOUT,
-            universal_newlines=True,
-            bufsize=1
-        )
-        
-        # Print output in real-time
-        for line in process.stdout:
-            print(line.rstrip())
-        
-        # Wait for completion
-        return_code = process.wait()
-        
-        if return_code == 0:
-            print(f"\n {description} completed successfully!")
-            return True, return_code
-        else:
-            print(f"\n {description} failed with exit code {return_code}")
-            return False, return_code
-            
-    except KeyboardInterrupt:
-        print(f"\n {description} interrupted by user")
-        try:
-            process.terminate()
-            process.wait(timeout=5)
-        except:
-            process.kill()
-        return False, -1
-    except Exception as e:
-        print(f"\n {description} failed with error: {e}")
-        return False, -1
-
-
-def find_current_best_model():
-    """Find the current best model file"""
-    # Check for canonical best model
-    if os.path.exists("model_weights/model_weights.pth"):
-        return "model_weights/model_weights.pth"
+    model_path = iteration_folder / "model_weights.pth"
+    print(f"Using model: {model_path}")
+    print(f"Games to generate: {total_games}")
+    print(f"Simulations per move: {num_simulations}")
     
-    # Check for any model in model_weights directory
-    model_weights_dir = Path("model_weights")
-    if model_weights_dir.exists():
-        model_files = list(model_weights_dir.glob("*.pth"))
-        if model_files:
-            # Use the most recently modified model
-            latest_model = max(model_files, key=os.path.getmtime)
-            return str(latest_model)
+    # Generate self-play data
+    data_file = generate_selfplay_data(
+        total_games=total_games,
+        num_simulations=num_simulations,
+        temperature=1.0,  # Default for self-play
+        model_path=str(model_path),
+        c_puct=2.0,  # Default
+        cpu_utilization=0.9,  # Default
+        max_processes_per_gpu=None,  # Auto-detect
+        output_dir=str(iteration_folder),
+        command_info={
+            'phase': 'self-play',
+            'iteration': iteration_folder.name,
+            'total_games': total_games,
+            'num_simulations': num_simulations
+        }
+    )
     
-    # No model found
-    return None
+    print(f"Self-play complete! Data saved to: {data_file}")
+    return data_file
 
 
-def create_iteration_directory(iteration_num):
-    """Create directory to store iteration results"""
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    iteration_dir = f"iterations/iteration_{iteration_num:03d}_{timestamp}"
-    os.makedirs(iteration_dir, exist_ok=True)
-    return iteration_dir
-
-
-def save_iteration_results(iteration_dir, results):
-    """Save iteration results to JSON file"""
-    results_file = os.path.join(iteration_dir, "iteration_results.json")
-    with open(results_file, 'w') as f:
-        json.dump(results, f, indent=2)
-    print(f" Iteration results saved to: {results_file}")
-    return results_file
-
-
-def run_single_iteration(args):
+def run_training_phase(iteration_folder, data_file, epochs, lr):
     """
-    Run one complete AlphaZero iteration
+    Run model training phase
+    
+    Args:
+        iteration_folder: Path to current iteration folder
+        data_file: Path to training data file
+        epochs: Number of training epochs
+        lr: Learning rate
     
     Returns:
-        dict: Iteration results and statistics
+        str: Path to newly trained model
     """
-    iteration_start_time = time.time()
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    print("\n" + "="*60)
+    print("PHASE 2: MODEL TRAINING")
+    print("="*60)
     
-    # Create iteration directory for organizing results
-    iteration_dir = create_iteration_directory(args.iteration_number)
+    base_model_path = iteration_folder / "model_weights.pth"
+    iteration_num = int(iteration_folder.name.split("_")[1])
+    new_model_path = iteration_folder / f"new_model_{iteration_num}.pth"
     
-    print(" ALDARION CHESS ENGINE - SINGLE ALPHAZERO ITERATION")
-    print("="*70)
-    print(f"Iteration: {args.iteration_number}")
-    print(f"Timestamp: {timestamp}")
-    print(f"Results directory: {iteration_dir}")
+    print(f"Base model: {base_model_path}")
+    print(f"Training data: {data_file}")
+    print(f"Output model: {new_model_path}")
+    print(f"Epochs: {epochs}")
+    print(f"Learning rate: {lr}")
     
-    results = {
-        'iteration_number': args.iteration_number,
-        'timestamp': timestamp,
-        'iteration_directory': iteration_dir,
-        'parameters': {
-            'selfplay_games': args.selfplay_games,
-            'selfplay_simulations': args.selfplay_simulations,
-            'training_epochs': args.training_epochs,
-            'training_batch_size': args.training_batch_size,
-            'training_lr': args.training_lr,
-            'eval_games': args.eval_games,
-            'eval_simulations': args.eval_simulations,
-            'win_threshold': args.win_threshold,
-            'cpu_utilization': args.cpu_utilization
-        },
-        'steps': {},
-        'champion_changed': False,
-        'success': False
-    }
+    # Prepare training arguments
+    training_args = [
+        '--data', str(data_file),
+        '--epochs', str(epochs),
+        '--lr', str(lr),
+        '--model_path', str(base_model_path),
+        '--output', str(iteration_folder)  # For training plots
+    ]
     
-    # STEP 1: Find current best model
-    print(f"\n STEP 0: Locating current best model...")
-    current_best_model = find_current_best_model()
-    
-    if current_best_model is None:
-        print(" No current best model found! Please ensure model_weights/model_weights.pth exists.")
-        results['error'] = "No current best model found"
-        save_iteration_results(iteration_dir, results)
-        return results
-    
-    print(f" Current best model: {current_best_model}")
-    results['current_best_model'] = current_best_model
-    
-    # Copy current best to iteration directory for record keeping
-    shutil.copy2(current_best_model, os.path.join(iteration_dir, "old_model.pth"))
-    
+    # Run training by simulating command line arguments
+    original_argv = sys.argv
     try:
-        # STEP 1: Generate self-play training data
-        selfplay_filename = f"selfplay_data_iter_{args.iteration_number}_{timestamp}.pkl"
-        selfplay_command = (
-            f"python3 selfplay_generate_data.py "
-            f"--total_games {args.selfplay_games} "
-            f"--num_simulations {args.selfplay_simulations} "
-            f"--cpu_utilization {args.cpu_utilization} "
-            f"--model_path {current_best_model} "
-            f"--output {selfplay_filename}"
-        )
+        sys.argv = ['train_model.py'] + training_args
+        final_model_path = train_model.main()
         
-        step_start = time.time()
-        success, return_code = run_command_with_output(
-            selfplay_command, 
-            f"Self-Play Data Generation ({args.selfplay_games} games)"
-        )
+        # Move the final model to our naming convention
+        if os.path.exists(final_model_path):
+            shutil.move(final_model_path, new_model_path)
+            print(f"Model saved as: {new_model_path}")
         
-        results['steps']['selfplay'] = {
-            'success': success,
-            'return_code': return_code,
-            'duration_seconds': time.time() - step_start,
-            'command': selfplay_command,
-            'output_file': f"training_data/{selfplay_filename}"
-        }
-        
-        if not success:
-            results['error'] = "Self-play data generation failed"
-            save_iteration_results(iteration_dir, results)
-            return results
-        
-        selfplay_data_path = f"training_data/{selfplay_filename}"
-        if not os.path.exists(selfplay_data_path):
-            print(f" Expected self-play data file not found: {selfplay_data_path}")
-            results['error'] = f"Self-play data file not found: {selfplay_data_path}"
-            save_iteration_results(iteration_dir, results)
-            return results
-        
-        # STEP 2: Train new neural network
-        new_model_filename = f"new_model_iter_{args.iteration_number}_{timestamp}.pth"
-        training_command = (
-            f"python3 train_model.py "
-            f"--data {selfplay_filename} "
-            f"--epochs {args.training_epochs} "
-            f"--batch_size {args.training_batch_size} "
-            f"--lr {args.training_lr} "
-            f"--model_path {current_best_model} "
-            f"--output_dir model_weights"
-        )
-        
-        step_start = time.time()
-        success, return_code = run_command_with_output(
-            training_command,
-            f"Neural Network Training ({args.training_epochs} epochs)"
-        )
-        
-        results['steps']['training'] = {
-            'success': success,
-            'return_code': return_code,
-            'duration_seconds': time.time() - step_start,
-            'command': training_command
-        }
-        
-        if not success:
-            results['error'] = "Neural network training failed"
-            save_iteration_results(iteration_dir, results)
-            return results
-        
-        # Find the trained model (train_model.py creates model_weights_final.pth)
-        trained_model_path = "model_weights/model_weights_final.pth"
-        if not os.path.exists(trained_model_path):
-            print(f" Expected trained model not found: {trained_model_path}")
-            results['error'] = f"Trained model not found: {trained_model_path}"
-            save_iteration_results(iteration_dir, results)
-            return results
-        
-        # Rename trained model to iteration-specific name
-        new_model_path = f"model_weights/{new_model_filename}"
-        shutil.move(trained_model_path, new_model_path)
-        print(f" New model saved as: {new_model_path}")
-        results['new_model_path'] = new_model_path
-        
-        # Copy new model to iteration directory
-        shutil.copy2(new_model_path, os.path.join(iteration_dir, "new_model.pth"))
-        
-        # Kill any lingering Python processes that might be holding GPU memory
-        print("Killing any lingering Python processes...")
-        kill_commands = [
-            "pkill -f 'python.*selfplay_generate_data'",
-            "pkill -f 'python.*MTCS'", 
-            "pkill -f 'python.*model'",
-        ]
-        
-        for cmd in kill_commands:
-            try:
-                subprocess.run(cmd, shell=True, capture_output=True, timeout=5)
-            except:
-                pass  # Ignore errors if no processes to kill
-        
-        print("Waiting for all processes to fully terminate...")
-        time.sleep(5)
-        
-        gc.collect()
-        
-        print("Checking GPU memory status...")
-        try:
-            gpu_check = "python3 -c \"import torch; print(f'GPU memory: {torch.cuda.memory_allocated()/1e9:.2f}GB allocated, {torch.cuda.memory_reserved()/1e9:.2f}GB reserved') if torch.cuda.is_available() else print('CUDA not available')\""
-            result = subprocess.run(gpu_check, shell=True, check=True, capture_output=True, text=True)
-            print(f"{result.stdout.strip()}")
-        except Exception as e:
-            print(f"GPU status check failed: {e}")
-        
-        # STEP 3: Evaluate new model against current best
-        # Use lower CPU utilization for evaluation to reduce GPU memory usage
-        eval_cpu_utilization = min(0.3, args.cpu_utilization)  # Cap at 30% to reduce memory pressure
-        evaluation_command = (
-            f"python3 evaluate_models.py "
-            f"--old_model {current_best_model} "
-            f"--new_model {new_model_path} "
-            f"--num_games {args.eval_games} "
-            f"--num_simulations {args.eval_simulations} "
-            f"--win_threshold {args.win_threshold} "
-            f"--cpu_utilization {eval_cpu_utilization}"
-        )
-        
-        step_start = time.time()
-        print(f"\nStarting model evaluation...")
-        print(f"Old model: {os.path.basename(current_best_model)}")
-        print(f"New model: {os.path.basename(new_model_path)}")
-        print(f"Games: {args.eval_games}, Win threshold: {args.win_threshold}%")
-        print(f"CPU utilization reduced to {eval_cpu_utilization*100:.0f}% for memory conservation")
-        
-        success, return_code = run_command_with_output(
-            evaluation_command,
-            f"Model Evaluation ({args.eval_games} games)"
-        )
-        
-        results['steps']['evaluation'] = {
-            'success': success,
-            'return_code': return_code,
-            'duration_seconds': time.time() - step_start,
-            'command': evaluation_command,
-            'new_model_accepted': return_code == 0  # evaluate_models.py returns 0 for accept, 1 for reject
-        }
-        
-        # STEP 4: Update champion based on evaluation results
-        if return_code == 0:
-            # New model won! Update the champion
-            print(f"\nNEW CHAMPION! New model accepted.")
-            
-            # Backup old champion
-            backup_name = f"model_weights_backup_iter_{args.iteration_number}_{timestamp}.pth"
-            backup_path = f"model_weights/{backup_name}"
-            shutil.copy2(current_best_model, backup_path)
-            print(f"Old champion backed up as: {backup_path}")
-            
-            # Update main model file
-            shutil.copy2(new_model_path, "model_weights/model_weights.pth")
-            print(f"Updated model_weights/model_weights.pth with new champion")
-            
-            results['champion_changed'] = True
-            results['new_champion'] = new_model_path
-            results['old_champion_backup'] = backup_path
-            results['success'] = True
-            
-        else:
-            # New model lost, keep old champion
-            print(f"\nNew model rejected. Keeping current champion: {os.path.basename(current_best_model)}")
-            
-            # Clean up rejected model to save space
-            os.remove(new_model_path)
-            print(f"Removed rejected model: {new_model_path}")
-            
-            results['champion_changed'] = False
-            results['rejected_model'] = new_model_path
-            results['success'] = True  # Iteration completed successfully even if model rejected
-        
-    except KeyboardInterrupt:
-        print(f"\nIteration interrupted by user")
-        results['error'] = "Interrupted by user"
-        results['success'] = False
-        
-    except Exception as e:
-        print(f"\nIteration failed with error: {e}")
-        import traceback
-        traceback.print_exc()
-        results['error'] = str(e)
-        results['success'] = False
+    finally:
+        sys.argv = original_argv
     
-    # Final summary
-    total_time = time.time() - iteration_start_time
-    results['total_duration_seconds'] = total_time
-    results['total_duration_minutes'] = total_time / 60
+    print(f"Training complete! New model: {new_model_path}")
+    return str(new_model_path)
+
+
+def run_evaluation_phase(iteration_folder, total_games, num_simulations):
+    """
+    Run model evaluation phase
     
-    print(f"\n{'='*70}")
-    print(f"ITERATION {args.iteration_number} COMPLETE")
-    print(f"{'='*70}")
-    print(f"Total time: {total_time/60:.1f} minutes")
-    print(f"Champion changed: {'YES' if results['champion_changed'] else '❌ NO'}")
-    print(f"Iteration success: {'SUCCESS' if results['success'] else '❌ FAILED'}")
+    Args:
+        iteration_folder: Path to current iteration folder
+        total_games: Number of evaluation games
+        num_simulations: MCTS simulations per move
     
-    if results['success']:
-        if results['champion_changed']:
-            print(f"New champion: {os.path.basename(results['new_champion'])}")
-        else:
-            print(f"Champion remains: {os.path.basename(current_best_model)}")
+    Returns:
+        dict: Evaluation results
+    """
+    print("\n" + "="*60)
+    print("PHASE 3: MODEL EVALUATION")
+    print("="*60)
     
-    # Save results
-    save_iteration_results(iteration_dir, results)
+    iteration_num = int(iteration_folder.name.split("_")[1])
+    old_model_path = iteration_folder / "model_weights.pth"
+    new_model_path = iteration_folder / f"new_model_{iteration_num}.pth"
+    
+    print(f"Old model: {old_model_path}")
+    print(f"New model: {new_model_path}")
+    print(f"Games to play: {total_games}")
+    print(f"Simulations per move: {num_simulations}")
+    
+    # Run evaluation
+    results = evaluate_models(
+        old_model_path=str(old_model_path),
+        new_model_path=str(new_model_path),
+        num_games=total_games,
+        num_simulations=num_simulations,
+        cpu_utilization=0.9  # Default
+    )
+    
+    # Save results (evaluate_models function handles this internally)
+    # Results are automatically saved to the iteration folder
+    
+    score_rate = results.get('score_rate', 0)
+    threshold = 55.0
+    
+    print(f"\nEvaluation complete!")
+    print(f"New model score rate: {score_rate:.1f}%")
+    if score_rate > threshold:
+        print(f"RESULT: NEW MODEL ACCEPTED! (>{threshold}%)")
+    else:
+        print(f"RESULT: NEW MODEL REJECTED! (<={threshold}%)")
     
     return results
 
 
 def main():
-    """Main function with command-line interface"""
+    """Main function to run complete training iteration"""
     parser = argparse.ArgumentParser(
-        description='Run single AlphaZero iteration for Aldarion Chess Engine',
+        description='Complete training iteration for Aldarion Chess Engine',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Single Iteration Workflow:
-1. Generate self-play data using current best model
-2. Train new neural network on that data
-3. Evaluate new model vs current best model
-4. Accept new model if win rate exceeds threshold
-5. Save all results and update champion
+This script runs a complete training iteration:
+1. Sets up new iteration folder based on previous results
+2. Generates self-play training data
+3. Trains new model on the data
+4. Evaluates new model vs current best
 
-Examples:
-  # Quick iteration (testing)
-  python3 main.py --iteration_number 1 --selfplay_games 50 --training_epochs 5 --eval_games 20
-  
-  # Standard iteration
-  python3 main.py --iteration_number 5 --selfplay_games 200 --training_epochs 15 --eval_games 50
-  
-  # High-quality iteration
-  python3 main.py --iteration_number 10 --selfplay_games 500 --training_epochs 25 --eval_games 100 --selfplay_simulations 600
+Example:
+  python3 main.py --total_games_self 100 --num_simulations 800 --total_games_eval 50 --epochs 10 --lr 0.2
         """
     )
     
-    # Iteration identification
-    parser.add_argument('--iteration_number', type=int, required=True,
-                        help='Iteration number for tracking and organization')
-    
-    # Self-play parameters
-    parser.add_argument('--selfplay_games', type=int, default=200,
-                        help='Number of self-play games to generate (default: 200)')
-    parser.add_argument('--selfplay_simulations', type=int, default=400,
-                        help='MCTS simulations per move during self-play (default: 400)')
-    
-    # Training parameters
-    parser.add_argument('--training_epochs', type=int, default=15,
-                        help='Number of training epochs (default: 15)')
-    parser.add_argument('--training_batch_size', type=int, default=32,
-                        help='Training batch size (default: 32)')
-    parser.add_argument('--training_lr', type=float, default=0.2,
-                        help='Learning rate for SGD training (default: 0.2)')
-    
-    # Evaluation parameters
-    parser.add_argument('--eval_games', type=int, default=50,
-                        help='Number of evaluation games (default: 50)')
-    parser.add_argument('--eval_simulations', type=int, default=200,
-                        help='MCTS simulations per move during evaluation (default: 200)')
-    parser.add_argument('--win_threshold', type=float, default=55.0,
-                        help='Win rate threshold for accepting new model (default: 55.0%)')
-    
-    # System parameters
-    parser.add_argument('--cpu_utilization', type=float, default=0.85,
-                        help='CPU utilization for parallel processing (default: 0.85)')
+    parser.add_argument('--total_games_self', type=int, default=100,
+                        help='Number of self-play games to generate (default: 100)')
+    parser.add_argument('--num_simulations', type=int, default=800,
+                        help='MCTS simulations per move for both self-play and evaluation (default: 800)')
+    parser.add_argument('--total_games_eval', type=int, default=50,
+                        help='Number of evaluation games to play (default: 50)')
+    parser.add_argument('--epochs', type=int, default=10,
+                        help='Number of training epochs (default: 10)')
+    parser.add_argument('--lr', type=float, default=0.2,
+                        help='Learning rate for training (default: 0.2)')
     
     args = parser.parse_args()
     
-    # Validate arguments
-    if args.iteration_number <= 0:
-        print("Error: iteration_number must be positive")
-        sys.exit(1)
+    print("ALDARION CHESS ENGINE - COMPLETE TRAINING ITERATION")
+    print("="*60)
+    print(f"Self-play games: {args.total_games_self}")
+    print(f"MCTS simulations: {args.num_simulations}")
+    print(f"Evaluation games: {args.total_games_eval}")
+    print(f"Training epochs: {args.epochs}")
+    print(f"Learning rate: {args.lr}")
+    print("="*60)
     
-    if not (0.0 <= args.cpu_utilization <= 1.0):
-        print("Error: cpu_utilization must be between 0.0 and 1.0")
-        sys.exit(1)
-    
-    if not (0.0 <= args.win_threshold <= 100.0):
-        print("Error: win_threshold must be between 0.0 and 100.0")
-        sys.exit(1)
-    
-    # Create necessary directories
-    os.makedirs("model_weights", exist_ok=True)
-    os.makedirs("training_data", exist_ok=True)
-    os.makedirs("training_data_stats", exist_ok=True)
-    os.makedirs("iterations", exist_ok=True)
-    
-    # Run the iteration
     try:
-        results = run_single_iteration(args)
+        # Step 1: Setup iteration
+        latest_iteration = find_latest_iteration()
+        accept_new_model = analyze_previous_evaluation(latest_iteration)
+        new_iteration = setup_new_iteration(latest_iteration, accept_new_model)
+        iteration_folder = Path(f"Iterations/Iteration_{new_iteration}")
         
-        # Exit with appropriate code
-        if results['success']:
-            if results['champion_changed']:
-                print(f"\nIteration {args.iteration_number} successful - NEW CHAMPION!")
-                sys.exit(0)
-            else:
-                print(f"\nIteration {args.iteration_number} successful - champion unchanged")
-                sys.exit(0)
+        # Step 2: Self-play data generation
+        data_file = run_selfplay_phase(iteration_folder, args.total_games_self, args.num_simulations)
+        
+        # Step 3: Model training
+        new_model_file = run_training_phase(iteration_folder, data_file, args.epochs, args.lr)
+        
+        # Step 4: Model evaluation
+        eval_results = run_evaluation_phase(iteration_folder, args.total_games_eval, args.num_simulations)
+        
+        # Final summary
+        print("\n" + "="*60)
+        print("TRAINING ITERATION COMPLETE")
+        print("="*60)
+        print(f"Iteration: {new_iteration}")
+        print(f"Folder: {iteration_folder}")
+        print(f"New model score rate: {eval_results.get('score_rate', 0):.1f}%")
+        print(f"Training data: {os.path.basename(data_file)}")
+        print(f"New model: new_model_{new_iteration}.pth")
+        
+        score_rate = eval_results.get('score_rate', 0)
+        if score_rate > 55.0:
+            print("STATUS: New model will be accepted in next iteration!")
         else:
-            print(f"\nIteration {args.iteration_number} failed")
-            sys.exit(1)
+            print("STATUS: New model will be rejected in next iteration.")
             
+        print("\nIteration complete! Ready for next iteration.")
+        
     except KeyboardInterrupt:
-        print(f"\nIteration interrupted by user")
+        print("\nTraining interrupted by user")
         sys.exit(1)
     except Exception as e:
-        print(f"Fatal error: {e}")
+        print(f"Error during training iteration: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)

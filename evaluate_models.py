@@ -153,7 +153,7 @@ def evaluate_models(old_model_path: str, new_model_path: str,
 
 
 def save_evaluation_results(results: Dict, old_model_path: str, new_model_path: str, 
-                          output_filename: str = None) -> str:
+                          output_dir: str = None) -> str:
     """
     Save evaluation results and statistics
     
@@ -161,22 +161,26 @@ def save_evaluation_results(results: Dict, old_model_path: str, new_model_path: 
         results: Evaluation results dictionary
         old_model_path: Path to old model
         new_model_path: Path to new model
-        output_filename: Optional output filename
+        output_dir: Optional output directory (default: evaluation_results/)
     
     Returns:
-        Filename where data was saved
+        Full path where data was saved
     """
-    if output_filename is None:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        old_name = os.path.splitext(os.path.basename(old_model_path))[0]
-        new_name = os.path.splitext(os.path.basename(new_model_path))[0]
-        output_filename = f"evaluation_{old_name}_vs_{new_name}_{timestamp}.pkl"
+    # Set default directory if not specified
+    if output_dir is None:
+        output_dir = "evaluation_results"
+    
+    # Generate filename
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    old_name = os.path.splitext(os.path.basename(old_model_path))[0]
+    new_name = os.path.splitext(os.path.basename(new_model_path))[0]
+    output_filename = f"evaluation_{old_name}_vs_{new_name}_{timestamp}.pkl"
     
     # Create directories if they don't exist
-    os.makedirs("evaluation_results", exist_ok=True)
+    os.makedirs(output_dir, exist_ok=True)
     
     # Generate full path
-    results_path = os.path.join("evaluation_results", output_filename)
+    results_path = os.path.join(output_dir, output_filename)
     
     # Add metadata to results
     results['metadata'] = {
@@ -195,7 +199,6 @@ def save_evaluation_results(results: Dict, old_model_path: str, new_model_path: 
 
 
 def main():
-    """Main function with command-line interface"""
     parser = argparse.ArgumentParser(
         description='Unified Model Evaluation for Aldarion Chess Engine',
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -209,6 +212,9 @@ Examples:
   
   # Fast evaluation with reduced CPU usage
   python3 evaluate_models.py --old_model current_best.pth --new_model candidate.pth --num_games 200 --num_simulations 800 --cpu_utilization 0.5
+  
+  # Save results to custom directory
+  python3 evaluate_models.py --old_model model_v1.pth --new_model model_v2.pth --num_games 50 --output Iterations/Iteration_1
 
 Notes:
 - Score-based win rate is the primary metric (wins + 0.5*draws)
@@ -227,10 +233,10 @@ Notes:
                         help='MCTS simulations per move (default: 200)')
     parser.add_argument('--win_threshold', type=float, default=55.0,
                         help='Win rate threshold for accepting new model (default: 55.0%)')
-    parser.add_argument('--cpu_utilization', type=float, default=0.8,
-                        help='CPU utilization for parallel processing (default: 0.8)')
+    parser.add_argument('--cpu_utilization', type=float, default=0.9,
+                        help='CPU utilization for parallel processing (default: 0.9)')
     parser.add_argument('--output', type=str, default=None,
-                        help='Output filename for evaluation results')
+                        help='Output directory for evaluation results (default: evaluation_results/)')
     
     args = parser.parse_args()
     
