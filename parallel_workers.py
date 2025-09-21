@@ -73,7 +73,7 @@ def selfplay_worker_process(gpu_device: str, num_games: int, task_config: Dict[s
                 print(f"Process {process_id}: Game {game_num + 1}/{num_games}")
                 
                 # Use existing run_game function with game tracking info
-                training_data = mt.run_game(model, temperature, num_simulations, device, 
+                training_data = mt.run_game(model, num_simulations, device, temperature=temperature, 
                                           c_puct=c_puct, current_game=game_num + 1, total_games=num_games, process_id=process_id)
                 all_training_data.extend(training_data)
                 games_completed += 1

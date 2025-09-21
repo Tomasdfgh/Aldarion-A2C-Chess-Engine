@@ -312,8 +312,10 @@ def run_evaluation_phase(iteration_folder, total_games, num_simulations):
         cpu_utilization=0.9  # Default
     )
     
-    # Save results (evaluate_models function handles this internally)
-    # Results are automatically saved to the iteration folder
+    # Save results to the iteration folder
+    from evaluate_models import save_evaluation_results
+    results_file = save_evaluation_results(results, str(old_model_path), str(new_model_path), str(iteration_folder))
+    print(f"Evaluation results saved to: {results_file}")
     
     score_rate = results.get('score_rate', 0)
     threshold = 55.0
@@ -412,4 +414,7 @@ Example:
 
 
 if __name__ == "__main__":
+    # Set multiprocessing start method for compatibility
+    import multiprocessing as mp
+    mp.set_start_method('spawn', force=True)
     main()
