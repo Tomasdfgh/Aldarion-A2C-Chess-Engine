@@ -5,7 +5,7 @@ import torch.nn.functional as F
 
 
 #This function converts the current board into 14 current position planes (12 pieces + 2 repetition counters).
-def board_to_array(board, turn, game_history=None):
+def board_to_array(board, game_history=None):
 	board_obj = chess.Board(board)
 	
 	array = np.zeros((14, 8, 8))
@@ -94,7 +94,7 @@ def board_to_full_alphazero_input(current_board, game_history=None):
 	for i, board_pos in enumerate(last_8_positions):
 		if board_pos is not None:
 			relevant_history = full_history[:len(full_history)-8+i+1]
-			position_array = board_to_array(board_pos.fen(), board_pos.turn, relevant_history)
+			position_array = board_to_array(board_pos.fen(), relevant_history)
 		else:
 			position_array = torch.zeros((14, 8, 8))
 		position_arrays.append(position_array)
@@ -103,14 +103,14 @@ def board_to_full_alphazero_input(current_board, game_history=None):
 	position_planes = torch.cat(position_arrays, dim=0)
 	
 	# Get game state information for current position (7 planes)
-	game_state_planes = board_to_game_state_array(current_board.fen(), current_board.turn)
+	game_state_planes = board_to_game_state_array(current_board.fen())
 	
 	# Combine everything (112 + 7 = 119 planes)
 	full_input = torch.cat([position_planes, game_state_planes], dim=0)
 	
 	return full_input
 
-def board_to_game_state_array(board, turn):
+def board_to_game_state_array(board):
 	board_obj = chess.Board(board)
 	
 	# Create 7 planes for game state information
@@ -189,9 +189,9 @@ def board_to_legal_policy_hash(board, policy_logits):
 	
 	# This chunk of code grabs the board, finds all legal moves and zero out all the illegal moves in the policy and normalizes it
 	legal_mask = create_legal_move_mask(board)
-	masked_logits = policy_logits.clone()
-	masked_logits[legal_mask.flatten() == 0] = -float('inf')
-	policy_probs = F.softmax(masked_logits, dim=0).reshape(8, 8, 73)
+	masked_logits = policy_logits.clone().view(-1)
+	masked_logits[~legal_mask.flatten()] = -float('inf')
+	policy_probs = F.softmax(masked_logits, dim=0).view(8, 8, 73)
 	
 	# Converts the policy to a hashmap of legal moves
 	legal_moves = list(board.legal_moves)
