@@ -87,7 +87,7 @@ class ChessTrainingDataset(Dataset):
         policy_vector = torch.zeros(4672, dtype=torch.float32).reshape(8, 8, 73)
         for move, prob in move_probs.items():
             try:
-                r, c, pl = br.uci_to_policy_index(str(move))
+                r, c, pl = br.uci_to_policy_index(str(move), current_board.turn)
                 policy_vector[r, c, pl] = float(prob)
             except:
                 continue
