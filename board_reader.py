@@ -170,70 +170,35 @@ def create_legal_move_mask(board):
 
 def board_to_legal_policy_hash(board, policy_logits):
 	"""
-	Convert raw policy logits to legal move probabilities
-	Applies masking BEFORE softmax to ensure proper probability distribution
+	Takes the board raw policy logits and converting it to a hashmap of legal move probabilities
 	"""
-	# Reshape logits to 8x8x73
-	policy_logits = policy_logits.reshape(8, 8, 73)
 	
-	# Create legal move mask
+	# This chunk of code grabs the board, finds all legal moves and zero out all the illegal moves in the policy and normalizes it
 	legal_mask = create_legal_move_mask(board)
-	
-	# Apply mask by setting illegal moves to -infinity
 	masked_logits = policy_logits.clone()
-	masked_logits[legal_mask == 0] = -float('inf')
+	masked_logits[legal_mask.flatten() == 0] = -float('inf')
+	policy_probs = F.softmax(masked_logits, dim=0).reshape(8, 8, 73)
 	
-	# Apply softmax only over legal moves
-	policy_probs = F.softmax(masked_logits.flatten(), dim=0).reshape(8, 8, 73)
-	
-	# Extract probabilities for legal moves
+	# Converts the policy to a hashmap of legal moves
 	legal_moves = list(board.legal_moves)
 	policy_distribution = {}
-	
 	for move in legal_moves:
 		try:
-			row, col, plane = uci_to_policy_index(str(move))
+			row, col, plane = uci_to_policy_index(str(move), board.turn)
 			policy_distribution[str(move)] = policy_probs[row, col, plane].item()
 		except ValueError as e:
-			print(f"   {move} -> ERROR: {e}")
-	
-	# Should already be normalized due to softmax, but verify
-	total = sum(policy_distribution.values())
-	if abs(total - 1.0) > 1e-6:
-		print(f"Warning: Policy distribution sum = {total}, expected 1.0")
-		policy_distribution = normalize_hash(policy_distribution)
+			print(f"{move} -> ERROR: {e}")
 	
 	return policy_distribution
 
 
-def normalize_hash(inp_hash):
-	sum_ = 0
-	for i in inp_hash:
-		sum_ += inp_hash[i]
-	
-	# Handle edge case where sum is zero
-	if sum_ == 0:
-		# Return uniform distribution
-		uniform_prob = 1.0 / len(inp_hash) if len(inp_hash) > 0 else 0
-		for i in inp_hash:
-			inp_hash[i] = uniform_prob
-	else:
-		for i in inp_hash:
-			inp_hash[i] /= sum_
-	
-	return inp_hash
-
-
-def uci_to_policy_index(uci_move, board_state=None):
+def uci_to_policy_index(uci_move, current_player_turn=chess.WHITE):
 	"""
-	Convert a UCI move string to AlphaZero policy tensor indices (row, col, plane).
-	
-	Args:
-		uci_move: UCI move string (e.g., "e2e4", "e1g1", "e7e8q")
-		board_state: Optional chess.Board object for move validation
-		
-	Returns:
-		tuple: (row, col, plane) indices for the 8x8x73 policy tensor
+	This is one tricky motherfucker, but this function is based on the implementation of the
+	actual alphazero paper. This converts the uci chess string like 'g1h3' which
+	represents a move from g1 to h3 and convert it to the row, col, and plane index in the 8 by 8 by 73 policy tensor.
+	If confused, look at how alphazero encodes their move. It is very specific and can be changed based on
+	implementation.
 	"""
 	
 	# Direction mappings (clockwise from North)
@@ -277,6 +242,11 @@ def uci_to_policy_index(uci_move, board_state=None):
 	from_row, from_col = square_to_coord(from_square)
 	to_row, to_col = square_to_coord(to_square)
 	
+	# Apply side-to-move normalization for Black
+	if current_player_turn == chess.BLACK:
+		from_row = 7 - from_row
+		to_row = 7 - to_row
+	
 	# Calculate movement vector
 	d_row = to_row - from_row
 	d_col = to_col - from_col
@@ -304,13 +274,6 @@ def uci_to_policy_index(uci_move, board_state=None):
 		
 		plane = 64 + direction_index * 3 + piece_index
 		return from_row, from_col, plane
-	
-	# Must be a queen-line move
-	# Normalize direction vector
-	def gcd(a, b):
-		while b:
-			a, b = b, a % b
-		return abs(a)
 	
 	if d_row == 0 and d_col == 0:
 		raise ValueError(f"Invalid move (no movement): {uci_move}")
