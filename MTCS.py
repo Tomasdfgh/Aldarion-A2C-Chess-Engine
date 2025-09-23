@@ -607,10 +607,11 @@ def run_game(model, num_simulations, device, temperature=1.0, c_puct=2.0, curren
 	final_training_data = []
 	for i, (board_state, history_fens, move_probs) in enumerate(training_data):
 		# Outcome from perspective of player who made the move
-		player_turn = chess.Board(board_state).turn
-		if player_turn:  # White
+		# The player who made this move is the opposite of current turn
+		player_who_moved = not chess.Board(board_state).turn
+		if player_who_moved:  # White made this move
 			outcome = game_outcome
-		else:  # Black  
+		else:  # Black made this move
 			outcome = -game_outcome
 		
 		final_training_data.append((board_state, history_fens, move_probs, outcome))
