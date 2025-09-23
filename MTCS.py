@@ -4,9 +4,120 @@ import torch
 import numpy as np
 import math
 import random
+import json
+import os
+from datetime import datetime
 
 # Global variable to store the last game's ending reason for stats collection
 last_game_ending_reason = None
+
+def has_terminal_children(node):
+	"""
+	Check if any of the node's children are terminal (checkmate/stalemate)
+	Returns True if at least one child is terminal
+	"""
+	for child in node.children:
+		if child.is_terminal():
+			return True
+	return False
+
+def log_terminal_analysis(root, selected_move, c_puct=2.0):
+	"""
+	Log detailed analysis when root has terminal children but may not choose them
+	Saves to terminal_analysis_YYYYMMDD_HHMMSS.json
+	"""
+	# Create analysis directory if it doesn't exist
+	analysis_dir = "terminal_analysis"
+	os.makedirs(analysis_dir, exist_ok=True)
+	
+	# Generate filename with timestamp
+	timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+	filename = f"terminal_analysis_{timestamp}.json"
+	filepath = os.path.join(analysis_dir, filename)
+	
+	# Collect data
+	board = chess.Board(root.state)
+	analysis_data = {
+		"timestamp": timestamp,
+		"position_fen": root.state,
+		"side_to_move": "White" if board.turn else "Black",
+		"root_stats": {
+			"N": root.N,
+			"W": root.W,
+			"Q": root.Q,
+			"total_children": len(root.children)
+		},
+		"children_analysis": [],
+		"move_chosen": selected_move,
+		"terminal_moves_available": [],
+		"should_have_chosen_terminal": False
+	}
+	
+	# Analyze each child
+	best_terminal_child = None
+	best_terminal_q = float('-inf')
+	
+	for child in root.children:
+		child_board = chess.Board(child.state)
+		
+		# Calculate UCB score
+		ucb_score = calculate_ucb(root, child, c_puct) if child.N > 0 else float('inf')
+		
+		# Determine terminal status and type
+		terminal_info = None
+		if child.is_terminal():
+			if child_board.is_checkmate():
+				terminal_info = "checkmate"
+				analysis_data["terminal_moves_available"].append({
+					"move": child.action,
+					"type": "checkmate",
+					"Q": child.Q,
+					"N": child.N,
+					"UCB": ucb_score
+				})
+				if child.Q > best_terminal_q:
+					best_terminal_q = child.Q
+					best_terminal_child = child
+			elif child_board.is_stalemate():
+				terminal_info = "stalemate"
+			else:
+				terminal_info = "other_terminal"
+		
+		child_data = {
+			"move": child.action,
+			"N": child.N,
+			"W": child.W,
+			"Q": child.Q,
+			"P": child.P,
+			"UCB": ucb_score,
+			"terminal": terminal_info,
+			"chosen": child.action == selected_move
+		}
+		
+		analysis_data["children_analysis"].append(child_data)
+	
+	# Determine if we should have chosen a terminal move
+	if best_terminal_child and best_terminal_child.action != selected_move:
+		analysis_data["should_have_chosen_terminal"] = True
+		analysis_data["best_terminal_move"] = {
+			"move": best_terminal_child.action,
+			"Q": best_terminal_child.Q,
+			"N": best_terminal_child.N,
+			"UCB": calculate_ucb(root, best_terminal_child, c_puct)
+		}
+	
+	# Sort children by Q value (descending) for easier analysis
+	analysis_data["children_analysis"].sort(key=lambda x: x["Q"], reverse=True)
+	
+	# Save to file
+	try:
+		with open(filepath, 'w') as f:
+			json.dump(analysis_data, f, indent=2)
+		print(f"Terminal analysis logged to: {filepath}")
+		return filepath
+	except Exception as e:
+		print(f"Failed to save terminal analysis: {e}")
+		return None
 
 
 
@@ -36,9 +147,9 @@ class MTCSNode:
 
 def calculate_ucb(parent, child, c_puct=2.0):
 	"""Calculate UCB1 score with PUCT formula"""
-	q = child.Q  # 0 when N==0
+	q = child.Q
 	u = c_puct * child.P * math.sqrt(max(1, parent.N)) / (1 + child.N)
-	return q + u
+	return -q + u
 
 def select_node(root, c_puct=2.0):
 	"""
@@ -190,9 +301,7 @@ def simulate(node, model, device, game_history=None):
 	if node.is_terminal():
 		board = chess.Board(node.state)
 		if board.is_checkmate():
-			# The side to move is checkmated, so the player who made the move (node.team) wins
-			# Return +1.0 for the winning side (the one who made the move to reach this state)
-			return 1.0  # Player who made the move wins
+			return -1.0
 		else:
 			# Draw
 			return 0.0
@@ -351,6 +460,10 @@ def select_move(root, temperature=1.0):
 		if child.action == selected_move:
 			selected_child = child
 			break
+	
+	# Check if root has terminal children and log analysis
+	if has_terminal_children(root):
+		log_terminal_analysis(root, selected_move, c_puct=2.0)
 	
 	return selected_move, selected_child
 
@@ -555,5 +668,9 @@ def get_best_move(model, board_fen, num_simulations, device, game_history=None, 
 	else:
 		# Sample from distribution
 		best_move, _ = select_move(root, temperature)
+	
+	# Check if root has terminal children and log analysis
+	if has_terminal_children(root):
+		log_terminal_analysis(root, best_move, c_puct)
 	
 	return best_move, move_probs
