@@ -12,19 +12,29 @@ def board_to_array(board, turn, game_history=None):
 	piece_types = [chess.PAWN, chess.ROOK, chess.KNIGHT, chess.BISHOP, chess.QUEEN, chess.KING]
 	
 	# Fill piece planes (planes 0-11)
-	# AlphaZero format: All white pieces (0-5), then all black pieces (6-11)
+	# AlphaZero format: Current player pieces (0-5), then opponent pieces (6-11)
+	current_player = board_obj.turn
+	opponent = not current_player
+	
 	for piece_idx, piece_type in enumerate(piece_types):
-
-		white_squares = board_obj.pieces(piece_type, chess.WHITE)
-		for square in white_squares:
+		# Current player's pieces go in planes 0-5
+		current_player_squares = board_obj.pieces(piece_type, current_player)
+		for square in current_player_squares:
 			row = 7 - (square // 8)  # Convert to matrix coordinates
 			col = square % 8
+			# Flip board if current player is Black
+			if current_player == chess.BLACK:
+				row = 7 - row
 			array[piece_idx][row][col] = 1
 		
-		black_squares = board_obj.pieces(piece_type, chess.BLACK)
-		for square in black_squares:
+		# Opponent's pieces go in planes 6-11
+		opponent_squares = board_obj.pieces(piece_type, opponent)
+		for square in opponent_squares:
 			row = 7 - (square // 8)  # Convert to matrix coordinates
 			col = square % 8
+			# Flip board if current player is Black
+			if current_player == chess.BLACK:
+				row = 7 - row
 			array[piece_idx + 6][row][col] = 1
 	
 	# Repetition Counters (2 planes: 12-13)
@@ -109,33 +119,37 @@ def board_to_game_state_array(board, turn):
 	# SECTION 2: GAME STATE INFORMATION (7 planes)
 	
 	# Castling Rights (4 planes: 0-3)
-	# White King-side Castling (plane 0)
-	if board_obj.has_kingside_castling_rights(chess.WHITE):
+	# Normalize to current player perspective
+	current_player = board_obj.turn
+	opponent = not current_player
+	
+	# Current Player King-side Castling (plane 0)
+	if board_obj.has_kingside_castling_rights(current_player):
 		array[0] = np.ones((8, 8))
 	
-	# White Queen-side Castling (plane 1)
-	if board_obj.has_queenside_castling_rights(chess.WHITE):
+	# Current Player Queen-side Castling (plane 1)
+	if board_obj.has_queenside_castling_rights(current_player):
 		array[1] = np.ones((8, 8))
 	
-	# Black King-side Castling (plane 2)
-	if board_obj.has_kingside_castling_rights(chess.BLACK):
+	# Opponent King-side Castling (plane 2)
+	if board_obj.has_kingside_castling_rights(opponent):
 		array[2] = np.ones((8, 8))
 	
-	# Black Queen-side Castling (plane 3)
-	if board_obj.has_queenside_castling_rights(chess.BLACK):
+	# Opponent Queen-side Castling (plane 3)
+	if board_obj.has_queenside_castling_rights(opponent):
 		array[3] = np.ones((8, 8))
 	
 	# En Passant (1 plane: 4)
 	if board_obj.ep_square is not None:
 		ep_row = 7 - (board_obj.ep_square // 8)
 		ep_col = board_obj.ep_square % 8
+		# Flip en passant coordinates if current player is Black
+		if current_player == chess.BLACK:
+			ep_row = 7 - ep_row
 		array[4][ep_row][ep_col] = 1
 	
 	# Current Player Color (plane 5)
-	if board_obj.turn == chess.WHITE:
-		array[5] = np.ones((8, 8))
-	else:
-		array[5] = np.zeros((8, 8))
+	array[5] = np.ones((8, 8))
 	
 	# Total Move Count (plane 6) - normalized
 	move_count = board_obj.fullmove_number / 100.0
@@ -159,7 +173,7 @@ def create_legal_move_mask(board):
 	
 	for move in legal_moves:
 		try:
-			row, col, plane = uci_to_policy_index(str(move))
+			row, col, plane = uci_to_policy_index(str(move), board.turn)
 			mask[row, col, plane] = True
 		except ValueError:
 			# Skip moves that can't be encoded
