@@ -6,17 +6,10 @@ This module provides unified infrastructure for both self-play training data gen
 and model evaluation, reducing code duplication and ensuring consistent behavior.
 """
 
-import os
 import torch
 import multiprocessing as mp
 import time
-import traceback
 from typing import List, Tuple, Dict, Any, Union
-from datetime import datetime
-
-# Import existing modules
-import MTCS as mt
-import model as md
 
 
 def detect_available_gpus() -> List[Dict[str, Any]]:

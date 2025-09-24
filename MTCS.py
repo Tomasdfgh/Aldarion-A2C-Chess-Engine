@@ -4,6 +4,43 @@ import torch
 import numpy as np
 import math
 
+'''
+This script is the implementation of monte carlo tree search. Classical 
+MCTS is not a deep learning algorithm that follows 4 basic steps:
+
+1. Selection
+2. Expansion
+3. Simulation
+4. Backprop
+
+With AlphaZero however, there is a neural network involved. Usually, there
+is a simulation phase where roll outs occur and random games are played until
+completion. The results of the random games are saved and backprop back up the
+tree. In Alphazero, this does not happen. Instead of roll outs, the state is
+just pass into the NN and the value and policy is obtained there. Because of that,
+in this code, the simulation phase does not exist and is absorb into the expansion
+stage.
+
+One thing to look at though is that during selfplay, both teams share the same game
+tree. That means at every generation, the perspective of the game tree is flipped.
+This makes sense because if I choose a move to make, its now my opponent's turn.
+
+The way that I implemented this is I set the terminal state to have a return of -1.
+I am not sure if this is right, but it makes sense logically I think. Terminal states
+can have two outcomes: draw or non draw. If its a non draw, then the terminal state will
+always be the parent node making that move winning. And since the node represents the
+current player's perspective, the losing node recieves a -1. and when that value is back-
+prop up the tree, the parent node then recieve a 1 (which is good because they made that
+winning move). But then this also means that when I calculate the UCB score, it has to be
+-q + u instead of q + u because from the parent's perspective, it will visit the child with
+the highest ucb score and that means we have to negate their value (hence -q).
+
+The reason why I brought this up is because I used to have a return of -1 for non draw
+terminal states and q + u for UCB calculation and most games would end in draws, which
+was strange. I then found out that the problem is that the tree sees a "mate in 1" move, but
+simply refuses to make that move.
+'''
+
 class MTCSNode:
 	def __init__(self, team, state, action, n, w, q, p, parent=None):
 		self.team = team			# bool with True for white
@@ -156,7 +193,8 @@ def backpropagate(node, value):
 		current.W += value
 		current.Q = current.W / current.N if current.N > 0 else 0.0
 		
-		# Flip value for next level (opponent's perspective)
+		# Flip value for each generation up the tree because every new
+		# generation is a change in player's perspective
 		value = -value
 		current = current.parent
 
@@ -165,10 +203,6 @@ def get_alphazero_temperature(move_number, base_temperature=1.0):
 	Get temperature with two-phase schedule:
 	- Temperature = base_temperature for moves 1-30
 	- Temperature = 0.0 after move 30
-	
-	Args:
-		move_number: Chess move number (not plies), starts from 1
-		base_temperature: Base temperature to use during exploration phase
 	"""
 	if move_number <= 30:
 		return base_temperature
@@ -180,43 +214,36 @@ def mcts_search(root, model, num_simulations, device, game_history=None, add_roo
 	Run MCTS for num_simulations iterations
 	Returns root node with updated statistics
 	"""
-	# Expand root if needed (for fresh roots or reused roots with no children)
+
 	if not root.is_expanded and not root.is_terminal():
-		_ = expand_node(root, model, device, game_history, add_noise=False)  # Expand without noise first
+		_ = expand_node(root, model, device, game_history)
 	
-	# Apply fresh Dirichlet noise to root every move (AlphaZero paper)
-	# This applies to both fresh roots and reused subtree roots
+	# Apply fresh Dirichlet noise only to root at every move (AlphaZero paper)
 	if add_root_noise and len(root.children) > 0:
+
 		# Create policy dict from children's current priors
 		policy_dict = {}
 		for child in root.children:
 			policy_dict[child.action] = child.P
 		
-		# Apply fresh Dirichlet noise
 		noisy_policy = add_dirichlet_noise(policy_dict)
 		
-		# Update children's priors with fresh noisy values
 		for child in root.children:
 			child.P = noisy_policy[child.action]
-		
 	
 	# Run MCTS simulations
-	for i in range(num_simulations):
-		# Selection: traverse tree to leaf
+	for _ in range(num_simulations): 
+
 		leaf = select_node(root, c_puct)
-		
-		# Expansion and evaluation
 		if not leaf.is_terminal():
 			value = expand_node(leaf, model, device, game_history)
 		else:
-			# Terminal node - evaluate based on game outcome
 			board = chess.Board(leaf.state)
 			if board.is_checkmate():
-				value = -1.0
+				value = -1.0 	# <---- Why this number is -1 and not 1 is discussed at the beginning of this script
 			else:
 				value = 0.0
-		
-		# Backpropagation
+
 		backpropagate(leaf, value)
 	
 	return root
@@ -225,6 +252,7 @@ def get_move_probabilities(root, temperature=1.0):
 	"""
 	Get move probabilities based on visit counts and temperature
 	"""
+
 	if len(root.children) == 0:
 		return {}
 	
@@ -236,18 +264,18 @@ def get_move_probabilities(root, temperature=1.0):
 		visits.append(child.N)
 		moves.append(child.action)
 	
-	if temperature <= 1e-8:
-		# Deterministic - choose most visited (handles temperature == 0 and near-zero)
+	# Deterministically choose most visited
+	if temperature == 0:
 		best_idx = np.argmax(visits)
 		for i, move in enumerate(moves):
 			move_probs[move] = 1.0 if i == best_idx else 0.0
+
 	else:
-		# Apply temperature
+		#Apply Temperature
 		visits = np.array(visits, dtype=np.float32)
 		if temperature != 1.0:
 			visits = visits ** (1.0 / temperature)
 		
-		# Normalize
 		if visits.sum() > 0:
 			visits = visits / visits.sum()
 		else:
@@ -277,11 +305,9 @@ def select_move(root, temperature=1.0):
 		probs = probs / probs.sum()
 	else:
 		probs = np.ones(len(probs)) / len(probs)
-	
-	# Sample from probability distribution
+
+	#Get the move and the child
 	selected_move = np.random.choice(moves, p=probs)
-	
-	# Find the corresponding child node for subtree reuse
 	selected_child = None
 	for child in root.children:
 		if child.action == selected_move:
@@ -290,41 +316,17 @@ def select_move(root, temperature=1.0):
 	
 	return selected_move, selected_child
 
-def promote_child_to_root(child_node):
-	"""
-	Promote a child node to be the new root for subtree reuse
-	Detaches it from parent and clears parent reference
-	"""
-	if child_node is None:
-		return None
-	
-	# Detach from parent
-	child_node.parent = None
-	
-	# This child becomes the new root with all its accumulated statistics
-	return child_node
 
 def run_game(model, num_simulations, device, temperature=1.0, c_puct=2.0, current_game=None, total_games=None, process_id=None):
 	"""
 	Play a full game using MCTS with AlphaZero parameters, collecting training data
 	Returns tuple of (training_data, ending_reason) where training_data is list of 
 	(board_state, history_fens, move_probabilities, game_outcome) tuples
-	
-	Args:
-		model: Neural network model
-		temperature: Base temperature for move selection
-		num_simulations: Number of MCTS simulations per move
-		device: PyTorch device
-		c_puct: PUCT exploration constant (default: 2.0, typical range: 1.0-2.5 for chess)
-		current_game: Current game number (1-indexed, optional)
-		total_games: Total number of games in this process (optional)
-		process_id: Process identifier (optional)
-	
-	AlphaZero implementation:
-	- Dirichlet noise added to root node during self-play
-	- Temperature = base_temperature for first 60 moves, then temperature → 0
-	- Training data uses temperature = 1 probabilities
+
+	This function is the main function used for self-play but not evaluation since the same game tree is shared between
+	the two teams.
 	"""
+
 	game_info = ""
 	if current_game is not None and total_games is not None:
 		game_info = f" ({current_game}/{total_games} games)"
@@ -334,16 +336,15 @@ def run_game(model, num_simulations, device, temperature=1.0, c_puct=2.0, curren
 	
 	# Initialize game
 	board = chess.Board()
-	game_history = []  # Keep Board objects for NN encoding
+	game_history = []  # Keep as Board objects for NN encoding
 	training_data = []
-	
 	move_count = 0
-	root = None  # Will be created or reused each iteration
+	root = None
 	
-	while not board.is_game_over() and move_count < 800:  # Early stopping at 800 plies
+	while not board.is_game_over() and move_count < 800:
+
 		print(f"Move {move_count + 1}, {'White' if board.turn else 'Black'} to move")
 		
-		# Create root node for current position (only if no subtree to reuse)
 		if root is None:
 			root = MTCSNode(
 				team=board.turn,
@@ -358,66 +359,54 @@ def run_game(model, num_simulations, device, temperature=1.0, c_puct=2.0, curren
 		else:
 			print(f"Reusing MCTS subtree (N={root.N}, children={len(root.children)})")
 		
-		# Run MCTS with Dirichlet noise at root (AlphaZero self-play)
 		root = mcts_search(root, model, num_simulations, device, game_history, add_root_noise=True, c_puct=c_puct)
-		
-		# Get move probabilities for training data (always use temperature=1 for training data)
 		move_probs = get_move_probabilities(root, temperature=1.0)
-		
-		# Store training data with history (previous positions only)
-		# Convert Board objects to FEN strings for storage
 		history_fens = [b.fen() for b in game_history[-7:]] if len(game_history) >= 7 else [b.fen() for b in game_history[:]]
 		
+		#Each of the training data here is still missing the value, which will be added once the game is over
 		training_data.append((board.fen(), history_fens, move_probs.copy()))
 		
-		# Select and make move using AlphaZero temperature schedule
-		# Use fullmove_number to count actual moves (not plies)
 		alphazero_temperature = get_alphazero_temperature(board.fullmove_number, base_temperature=temperature)
 		selected_move, selected_child = select_move(root, alphazero_temperature)
 		
-		if selected_move is None:
-			print("No legal moves available")
-			break
-		
-		print(f"Selected move: {selected_move} (temp={alphazero_temperature}){game_info}")
-		print()  # Add newline between moves
-		
-		# Apply move
+		print(f"Selected move: {selected_move} (temp={alphazero_temperature}){game_info} \n")
 		move_obj = chess.Move.from_uci(selected_move)
 		board.push(move_obj)
-		game_history.append(board.copy())  # Store Board object, not FEN string
+		game_history.append(board.copy())
 		
-		# Promote selected child to new root for subtree reuse (AlphaZero optimization)
-		root = promote_child_to_root(selected_child)
+		# Promote selected child to new root for subtree reuse and clear out the other branches
+		if selected_child is not None:
+			selected_child.parent = None
+			root = selected_child
+		else:
+			root = None
 		
 		move_count += 1
 	
 	# Determine game outcome and ending reason
 	if board.is_checkmate():
-		# Winner gets +1, loser gets -1
-		# board.turn indicates who is checkmated (whose turn it is when checkmate occurs)
-		game_outcome = -1 if board.turn else 1  # If White's turn -> White checkmated -> Black wins (-1), vice versa
+		game_outcome = -1 if board.turn else 1
 		winner = 'Black' if game_outcome == -1 else 'White'
 		ending_reason = f"{winner} wins by checkmate"
 		print(f"Game over: {ending_reason}")
 	elif board.is_stalemate():
-		game_outcome = 0  # Draw
+		game_outcome = 0
 		ending_reason = "Draw by stalemate"
 		print(f"Game over: {ending_reason}")
 	elif board.is_insufficient_material():
-		game_outcome = 0  # Draw
+		game_outcome = 0 
 		ending_reason = "Draw by insufficient material"
 		print(f"Game over: {ending_reason}")
 	elif board.is_seventyfive_moves():
-		game_outcome = 0  # Draw
+		game_outcome = 0
 		ending_reason = "Draw by 75-move rule"
 		print(f"Game over: {ending_reason}")
 	elif board.is_fivefold_repetition():
-		game_outcome = 0  # Draw
+		game_outcome = 0
 		ending_reason = "Draw by fivefold repetition"
 		print(f"Game over: {ending_reason}")
 	elif move_count >= 800:
-		game_outcome = 0  # Early stopping - treat as draw
+		game_outcome = 0
 		ending_reason = "Draw by 800-ply limit"
 		print(f"Game over: {ending_reason}")
 	else:
@@ -428,65 +417,16 @@ def run_game(model, num_simulations, device, temperature=1.0, c_puct=2.0, curren
 	
 	# Convert training data to final format with game outcomes
 	final_training_data = []
-	for i, (board_state, history_fens, move_probs) in enumerate(training_data):
-		# Outcome from perspective of player who made the move
-		# The player who made this move is the opposite of current turn
+	for board_state, history_fens, move_probs in training_data:
+
 		player_who_moved = not chess.Board(board_state).turn
-		if player_who_moved:  # White made this move
+		if player_who_moved:
 			outcome = game_outcome
-		else:  # Black made this move
+		else:
 			outcome = -game_outcome
 		
 		final_training_data.append((board_state, history_fens, move_probs, outcome))
 	
 	print(f"Game completed in {move_count} moves")
 	print(f"Generated {len(final_training_data)} training examples")
-	
 	return final_training_data, ending_reason
-
-
-def get_best_move(model, board_fen, num_simulations, device, game_history=None, temperature=0.0, c_puct=2.0):
-	"""
-	Get the best move for a given position using MCTS
-	
-	Args:
-		model: Neural network model
-		board_fen: FEN string of current board position
-		num_simulations: Number of MCTS simulations to run
-		device: PyTorch device
-		game_history: Optional list of chess.Board objects for history
-		temperature: Temperature for move selection (0.0 = deterministic)
-		c_puct: PUCT exploration constant (default: 2.0, typical range: 1.0-2.5 for chess)
-	
-	Returns:
-		tuple: (best_move_uci, move_probabilities_dict)
-	"""
-	board = chess.Board(board_fen)
-	
-	root = MTCSNode(
-		team=board.turn,
-		state=board_fen,
-		action=None,
-		n=0,
-		w=0.0,
-		q=0.0,
-		p=1.0
-	)
-	
-	
-	# Run MCTS (no noise for evaluation, only for self-play training)
-	root = mcts_search(root, model, num_simulations, device, game_history, add_root_noise=False, c_puct=c_puct)
-	
-	# Get move probabilities
-	move_probs = get_move_probabilities(root, temperature)
-	
-	# Select best move
-	if temperature == 0.0:
-		# Deterministic: select most visited
-		best_child = max(root.children, key=lambda x: x.N)
-		best_move = best_child.action
-	else:
-		# Sample from distribution
-		best_move, _ = select_move(root, temperature)
-	
-	return best_move, move_probs

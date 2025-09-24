@@ -1,28 +1,4 @@
 #!/usr/bin/env python3
-"""
-Unified Self-Play Training Data Generation for Aldarion Chess Engine
-
-This script uses the unified parallel processing infrastructure to generate
-training data through self-play games.
-"""
-
-
-'''
-  tmux new-session -d -s selfplay 'python3 selfplay_generate_data.py --total_games 84 --num_simulations 800
-  --cpu_utilization 0.9'
-
-  To monitor the session:
-  tmux attach -t selfplay
-
-  To detach (keep running in background):
-  Ctrl+b, then d
-
-  To check if it's still running:
-  tmux list-sessions
-
-  tmux kill-session -t selfplay
-'''
-
 import os
 import sys
 import argparse
@@ -30,6 +6,7 @@ import time
 import pickle
 from datetime import datetime
 from typing import List, Dict
+import multiprocessing as mp
 
 # Import unified modules
 from parallel_utils import run_parallel_task_execution
@@ -38,27 +15,13 @@ from parallel_workers import selfplay_worker_process
 
 def generate_selfplay_data(total_games: int, num_simulations: int, 
                           temperature: float, model_path: str,
-                          c_puct: float = 4.0,
+                          c_puct: float = 2.0,
                           cpu_utilization: float = 0.90,
                           max_processes_per_gpu: int = None,
                           output_dir: str = None,
                           command_info: Dict = None) -> str:
     """
-    Generate self-play training data using unified parallel processing
-    
-    Args:
-        total_games: Total number of games to generate
-        num_simulations: MCTS simulations per move
-        temperature: Temperature for move selection
-        model_path: Path to model weights
-        c_puct: MCTS exploration parameter (default: 4.0)
-        cpu_utilization: Target CPU utilization (0.0 to 1.0)
-        max_processes_per_gpu: Manual override for max processes per GPU
-        output_dir: Optional output directory (default: training_data/)
-        command_info: Dict containing command and arguments used
-    
-    Returns:
-        Path to saved training data file
+    Generate self-play training data using parallel processing
     """
     print("="*60)
     print("UNIFIED SELF-PLAY DATA GENERATION")
@@ -82,10 +45,10 @@ def generate_selfplay_data(total_games: int, num_simulations: int,
     # Execute parallel self-play
     start_time = time.time()
     training_data, process_statistics = run_parallel_task_execution(
-        task_config=task_config,
-        worker_function=selfplay_worker_process,
-        cpu_utilization=cpu_utilization,
-        max_processes_per_gpu=max_processes_per_gpu
+        task_config=            task_config,
+        worker_function=        selfplay_worker_process,
+        cpu_utilization=        cpu_utilization,
+        max_processes_per_gpu=  max_processes_per_gpu
     )
     execution_time = time.time() - start_time
     
@@ -104,19 +67,10 @@ def generate_selfplay_data(total_games: int, num_simulations: int,
 def save_training_data(training_data: List, process_stats: List, output_dir: str = None, command_info: Dict = None) -> str:
     """
     Save training data and process statistics
-    
-    Args:
-        training_data: List of training examples
-        process_stats: List of process statistics
-        output_dir: Optional output directory (default: training_data/)
-        command_info: Dict containing command and arguments used
-    
-    Returns:
-        Filename where data was saved
     """
-    # Generate filename with timestamp
+
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_filename = f"unified_selfplay_data_{timestamp}.pkl"
+    output_filename = f"selfplay_data_{timestamp}.pkl"
     
     # Set default directories if not specified
     if output_dir is None:
@@ -126,38 +80,111 @@ def save_training_data(training_data: List, process_stats: List, output_dir: str
         main_data_dir = output_dir
         stats_data_dir = output_dir
     
-    # Create directories if they don't exist
     os.makedirs(main_data_dir, exist_ok=True)
     os.makedirs(stats_data_dir, exist_ok=True)
-    
-    # Generate full paths with proper organization
     main_data_path = os.path.join(main_data_dir, output_filename)
     base_filename = os.path.splitext(output_filename)[0]
-    stats_filename = f"{base_filename}_stats.pkl"
+    stats_filename = f"{base_filename}_stats.txt"
     stats_path = os.path.join(stats_data_dir, stats_filename)
     
     # Save training data
     with open(main_data_path, 'wb') as f:
         pickle.dump(training_data, f)
     
-    # Save statistics with command information
-    stats_data = {
-        'process_stats': process_stats,
-        'command_info': command_info
-    }
-    with open(stats_path, 'wb') as f:
-        pickle.dump(stats_data, f)
+    # Save statistics with command information as text
+    with open(stats_path, 'w') as f:
+        # Command used section
+        if command_info and 'command_line' in command_info:
+            f.write("Command used:\n")
+            f.write(f"  {command_info['command_line']}\n")
+            if 'timestamp' in command_info:
+                f.write(f"  Timestamp: {command_info['timestamp']}\n")
+            if 'arguments' in command_info:
+                args = command_info['arguments']
+                f.write(f"  Parameters: games={args.get('total_games')}, sims={args.get('num_simulations')}, ")
+                f.write(f"temp={args.get('temperature')}, c_puct={args.get('c_puct')}, cpu={args.get('cpu_utilization')}\n")
+        
+        f.write(f"Number of processes: {len(process_stats)}\n\n")
+        
+        # Per-process breakdown
+        f.write("Per-process breakdown:\n")
+        for i, stats in enumerate(process_stats):
+            tasks = stats.get('tasks_completed', 0)
+            examples = stats.get('training_examples', 0)
+            outcomes = stats.get('game_outcomes', {})
+            w = outcomes.get('white_wins', 0)
+            b = outcomes.get('black_wins', 0)
+            d = outcomes.get('draws', 0)
+            
+            f.write(f"Process {i:2d}: {tasks} tasks, {tasks} games, {examples:,} examples (W:{w}, B:{b}, D:{d})\n")
+            
+            # Game ending reasons
+            reasons = stats.get('game_ending_reasons', {})
+            if reasons:
+                f.write(f"             Game ending reasons:\n")
+                total_games = sum(reasons.values())
+                for reason, count in reasons.items():
+                    pct = (count / total_games * 100) if total_games > 0 else 0
+                    f.write(f"               {reason}: {count} ({pct:.1f}%)\n")
+        
+        # Summary section
+        f.write("\n" + "="*60 + "\n")
+        f.write("SUMMARY:\n")
+        f.write("="*60 + "\n")
+        
+        total_tasks = sum(s.get('tasks_completed', 0) for s in process_stats)
+        total_examples = sum(s.get('training_examples', 0) for s in process_stats)
+        
+        # Aggregate game outcomes
+        total_white_wins = 0
+        total_black_wins = 0
+        total_draws = 0
+        all_ending_reasons = {}
+        
+        for stats in process_stats:
+            outcomes = stats.get('game_outcomes', {})
+            total_white_wins += outcomes.get('white_wins', 0)
+            total_black_wins += outcomes.get('black_wins', 0)
+            total_draws += outcomes.get('draws', 0)
+            
+            reasons = stats.get('game_ending_reasons', {})
+            for reason, count in reasons.items():
+                all_ending_reasons[reason] = all_ending_reasons.get(reason, 0) + count
+        
+        total_games = total_white_wins + total_black_wins + total_draws
+        
+        f.write(f"Tasks completed:      {total_tasks}\n")
+        f.write(f"Total games:          {total_games}\n")
+        f.write(f"Training examples:    {total_examples:,}\n\n")
+        
+        f.write("Game outcomes:\n")
+        if total_games > 0:
+            f.write(f"  White wins:         {total_white_wins} ({total_white_wins/total_games*100:.1f}%)\n")
+            f.write(f"  Black wins:         {total_black_wins} ({total_black_wins/total_games*100:.1f}%)\n")
+            f.write(f"  Draws:              {total_draws} ({total_draws/total_games*100:.1f}%)\n")
+        
+        f.write(f"\nRatios:\n")
+        if total_tasks > 0:
+            f.write(f"  Games per task:     {total_games/total_tasks:.2f}\n")
+        if total_games > 0:
+            f.write(f"  Examples per game:  {total_examples/total_games:.1f}\n")
+        if total_tasks > 0:
+            f.write(f"  Examples per task:  {total_examples/total_tasks:.1f}\n")
+        
+        if all_ending_reasons:
+            f.write(f"\nGame ending reasons (across all processes):\n")
+            for reason, count in sorted(all_ending_reasons.items(), key=lambda x: -x[1]):
+                pct = (count / total_games * 100) if total_games > 0 else 0
+                f.write(f"  {reason}: {count} ({pct:.1f}%)\n")
     
     print(f"Training data saved to: {main_data_path}")
     print(f"Process statistics saved to: {stats_path}")
     
     return main_data_path
 
-
 def main():
-    """Main function with command-line interface"""
     parser = argparse.ArgumentParser(
-        description='Unified Self-Play Training Data Generation',
+        description='Self-Play Training Data Generation',
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     
@@ -167,8 +194,8 @@ def main():
                         help='MCTS simulations per move (default: 100)')
     parser.add_argument('--temperature', type=float, default=1.0,
                         help='Temperature for move selection (default: 1.0)')
-    parser.add_argument('--c_puct', type=float, default=4.0,
-                        help='MCTS exploration parameter (default: 4.0)')
+    parser.add_argument('--c_puct', type=float, default=2.0,
+                        help='MCTS exploration parameter (default: 2.0)')
     parser.add_argument('--model_path', type=str, default='model_weights/model_weights.pth',
                         help='Path to model weights (default: model_weights/model_weights.pth)')
     parser.add_argument('--cpu_utilization', type=float, default=0.90,
@@ -179,24 +206,10 @@ def main():
                         help='Output directory for training data (default: training_data/)')
     
     args = parser.parse_args()
-    
-    # Validate arguments
-    if args.total_games <= 0:
-        print("Error: total_games must be positive")
-        sys.exit(1)
-    
-    if not (0.0 <= args.cpu_utilization <= 1.0):
-        print("Error: cpu_utilization must be between 0.0 and 1.0")
-        sys.exit(1)
-    
+
     if not os.path.exists(args.model_path):
         print(f"Warning: Model file {args.model_path} not found. Will use random weights.")
     
-    # Create necessary directories
-    os.makedirs("training_data", exist_ok=True)
-    os.makedirs("training_data_stats", exist_ok=True)
-    
-    # Capture command information
     command_info = {
         'command_line': ' '.join(sys.argv),
         'timestamp': datetime.now().isoformat(),
@@ -212,7 +225,6 @@ def main():
         }
     }
     
-    # Run self-play generation
     try:
         saved_file = generate_selfplay_data(
             total_games=args.total_games,
@@ -245,7 +257,5 @@ def main():
 
 
 if __name__ == "__main__":
-    # Set multiprocessing start method for compatibility
-    import multiprocessing as mp
     mp.set_start_method('spawn', force=True)
     main()

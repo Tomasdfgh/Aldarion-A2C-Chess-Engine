@@ -10,6 +10,10 @@ of the game to convert it to inputs for the model based on Alphazero's implement
 It is also meant to analyze the outputs of the model and convert it to proper
 legal move distributions to be played on the board.
 
+=================================================================
+These Functions below are meant to represent the board as Inputs
+=================================================================
+
 Detailed below is also how the current state and the game history is being represented
 as the input into the model:
 
@@ -43,10 +47,6 @@ if not all 0s. The last 2 planes is to denote the current player's colour (all 1
 IMPORTANT: AlphaZero always plays from the current player's perspective. This means the board is 
 always oriented so that the current player's pieces face downward (towards rank 1). When it's Black's 
 turn, the entire board representation is flipped 180 degrees so Black's pieces face downward.
-
-=================================================================
-These Functions below are meant to represent the board as Inputs
-=================================================================
 '''
 
 def board_to_array(board, game_history=None):
