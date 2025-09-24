@@ -38,8 +38,7 @@ def evaluate_models(old_model_path: str, new_model_path: str,
         'total_tasks': num_games,
         'num_simulations': num_simulations,
         'old_model_path': old_model_path,
-        'new_model_path': new_model_path,
-        'starting_game_id': 0
+        'new_model_path': new_model_path
     }
     
     start_time = time.time()

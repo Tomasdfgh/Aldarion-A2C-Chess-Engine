@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Unified Worker Functions for Parallel Chess Engine Tasks
+Worker Functions for Parallel Chess Engine Tasks
 
 This module provides worker functions that can handle both self-play training
 and model evaluation using the same underlying infrastructure.
@@ -9,8 +9,6 @@ and model evaluation using the same underlying infrastructure.
 import os
 import torch
 import time
-import traceback
-from typing import List, Tuple, Dict, Any
 import chess
 import random
 
@@ -20,35 +18,22 @@ import model as md
 from parallel_utils import cleanup_gpu_memory, create_process_statistics
 
 
-def selfplay_worker_process(gpu_device: str, num_games: int, task_config: Dict[str, Any], 
-                           process_id: int) -> Tuple[List, Dict]:
+def selfplay_worker_process(gpu_device, num_games, task_config, process_id):
     """
     Worker process for self-play training data generation
-    
-    Args:
-        gpu_device: GPU device to use (e.g., 'cuda:0')
-        num_games: Number of games for this process to generate
-        task_config: Configuration dictionary with task parameters
-        process_id: Unique process identifier
-    
-    Returns:
-        Tuple of (training_data, process_stats)
     """
     start_time = time.time()
     
     try:
         num_simulations = task_config['num_simulations']
-        temperature = task_config.get('temperature', 1.0)  # Default to 1.0 for self-play
-        c_puct = task_config.get('c_puct', 2.0)  # Default to 2.0 if not specified
+        temperature = task_config.get('temperature', 1.0)
+        c_puct = task_config.get('c_puct', 2.0)
         model_path = task_config['model_path']
         
         print(f"Process {process_id}: Starting on {gpu_device} with {num_games} games")
-        
-        # Setup device
         device = torch.device(gpu_device)
         
         # Load model (each process gets its own copy)
-        model_load_start = time.time()
         model = md.ChessNet()
         model.to(device)
         
@@ -60,9 +45,7 @@ def selfplay_worker_process(gpu_device: str, num_games: int, task_config: Dict[s
         else:
             print(f"Process {process_id}: Warning - Model file {model_path} not found. Using random weights.")
         
-        model_load_time = time.time() - model_load_start
-        
-        # Generate training data using existing function
+
         all_training_data = []
         games_completed = 0
         game_lengths = []
@@ -74,34 +57,27 @@ def selfplay_worker_process(gpu_device: str, num_games: int, task_config: Dict[s
                 game_start_time = time.time()
                 print(f"Process {process_id}: Game {game_num + 1}/{num_games}")
                 
-                # Use existing run_game function with game tracking info
+
                 training_data, ending_reason = mt.run_game(model, num_simulations, device, temperature=temperature, 
                                           c_puct=c_puct, current_game=game_num + 1, total_games=num_games, process_id=process_id)
                 all_training_data.extend(training_data)
-                games_completed += 1
                 
-                # Collect game statistics
                 game_length = len(training_data)
                 game_lengths.append(game_length)
-                
-                # Extract game outcome from last training example
                 if training_data:
-                    outcome = training_data[-1][3]  # (board_fen, history_fens, move_probs, outcome)
+                    outcome = training_data[-1][3]
                     game_outcomes.append(outcome)
-                
-                # Store the ending reason
                 game_ending_reasons.append(ending_reason)
+                games_completed += 1
                 
                 game_time = time.time() - game_start_time
                 print(f"Process {process_id}: Game {game_num + 1} completed in {game_time:.1f}s, {len(training_data)} examples")
                 
             except Exception as e:
                 print(f"Process {process_id}: Error in game {game_num + 1}: {e}")
-                # Add error as ending reason
                 game_ending_reasons.append(f"Game error: {str(e)}")
                 continue
         
-        # Calculate detailed statistics
         white_wins = sum(1 for outcome in game_outcomes if outcome < 0)
         black_wins = sum(1 for outcome in game_outcomes if outcome > 0)
         draws = sum(1 for outcome in game_outcomes if outcome == 0)
@@ -110,12 +86,10 @@ def selfplay_worker_process(gpu_device: str, num_games: int, task_config: Dict[s
         min_game_length = min(game_lengths) if game_lengths else 0
         max_game_length = max(game_lengths) if game_lengths else 0
         
-        # Count ending reasons
         ending_reason_counts = {}
         for reason in game_ending_reasons:
             ending_reason_counts[reason] = ending_reason_counts.get(reason, 0) + 1
-        
-        # Create process statistics
+
         process_stats = create_process_statistics(
             process_id=process_id,
             gpu_device=gpu_device,
@@ -123,18 +97,9 @@ def selfplay_worker_process(gpu_device: str, num_games: int, task_config: Dict[s
             tasks_completed=games_completed,
             tasks_requested=num_games,
             training_examples=len(all_training_data),
-            model_load_time_seconds=model_load_time,
             examples_per_minute=(len(all_training_data) / (time.time() - start_time)) * 60 if time.time() - start_time > 0 else 0,
-            game_outcomes={
-                'white_wins': white_wins,
-                'black_wins': black_wins,
-                'draws': draws
-            },
-            game_length_stats={
-                'average': avg_game_length,
-                'minimum': min_game_length,
-                'maximum': max_game_length
-            },
+            game_outcomes={'white_wins': white_wins, 'black_wins': black_wins, 'draws': draws},
+            game_length_stats={'average': avg_game_length, 'minimum': min_game_length, 'maximum': max_game_length },
             game_ending_reasons=ending_reason_counts,
             simulations_per_move=num_simulations,
             temperature=temperature
@@ -142,17 +107,13 @@ def selfplay_worker_process(gpu_device: str, num_games: int, task_config: Dict[s
         
         print(f"Process {process_id}: Completed {games_completed}/{num_games} games")
         print(f"Process {process_id}: {len(all_training_data)} examples, {games_completed/(time.time()-start_time)*60:.1f} games/min")
-        
-        # Explicit GPU memory cleanup
         cleanup_gpu_memory(device, process_id, [model])
         
         return all_training_data, process_stats
         
     except Exception as e:
         print(f"Process {process_id}: Fatal error: {e}")
-        traceback.print_exc()
         
-        # Cleanup on error
         if 'model' in locals():
             cleanup_gpu_memory(locals().get('device', torch.device('cpu')), process_id, [locals()['model']])
         
@@ -165,95 +126,10 @@ def selfplay_worker_process(gpu_device: str, num_games: int, task_config: Dict[s
             error=str(e)
         )
 
-
-def get_best_move_with_tree_reuse(model, board_fen: str, num_simulations: int, device: torch.device,
-                                 game_history=None, existing_tree=None, temperature=0.0, c_puct=2.0):
-    """
-    Get the best move for a given position using MCTS with optional tree reuse
-    
-    Args:
-        model: Neural network model
-        board_fen: FEN string of current board position
-        num_simulations: Number of MCTS simulations to run
-        device: PyTorch device
-        game_history: Optional list of chess.Board objects for history
-        existing_tree: Optional existing MCTS tree to reuse/extend
-        temperature: Temperature for move selection (0.0 = deterministic)
-        c_puct: PUCT exploration constant
-    
-    Returns:
-        tuple: (best_move_uci, selected_child_node)
-    """
-    
-    board = chess.Board(board_fen)
-    
-    # Check if we can reuse the existing tree
-    if existing_tree is not None and existing_tree.state == board_fen:
-        # Tree matches current position - reuse it
-        root = existing_tree
-        print(f"Reusing MCTS tree (N={root.N}, children={len(root.children)})")
-    else:
-        # Create new tree or find child that matches current position
-        root = None
-        
-        if existing_tree is not None:
-            # Try to find a child that matches the current position
-            for child in existing_tree.children:
-                if child.state == board_fen:
-                    child.parent = None
-                    root = child
-                    print(f"Promoting child to root (N={root.N}, children={len(root.children)})")
-                    break
-        
-        if root is None:
-            # Create fresh tree
-            root = mt.MTCSNode(
-                team=board.turn,
-                state=board_fen,
-                action=None,
-                n=0,
-                w=0.0,
-                q=0.0,
-                p=1.0
-            )
-            print("Created fresh MCTS root")
-    
-    # Run MCTS (no noise for evaluation, only for self-play training)
-    root = mt.mcts_search(root, model, num_simulations, device, game_history, add_root_noise=False, c_puct=c_puct)
-    
-    # Get move probabilities
-    move_probs = mt.get_move_probabilities(root, temperature)
-    
-    # Select best move
-    if temperature == 0.0:
-        # Deterministic: select most visited
-        best_child = max(root.children, key=lambda x: x.N)
-        best_move = best_child.action
-        selected_child = best_child
-    else:
-        # Sample from distribution
-        best_move, selected_child = mt.select_move(root, temperature)
-    
-    # Prepare selected child for reuse by promoting it to root
-    if selected_child is not None:
-        selected_child.parent = None
-    
-    return best_move, selected_child
-
-
-def evaluation_worker_process(gpu_device: str, num_games: int, task_config: Dict[str, Any], 
-                            process_id: int) -> Tuple[List, Dict]:
+def evaluation_worker_process(gpu_device: str, num_games: int, task_config, 
+                            process_id: int):
     """
     Worker process for model evaluation games
-    
-    Args:
-        gpu_device: GPU device to use (e.g., 'cuda:0')
-        num_games: Number of games for this process to play
-        task_config: Configuration dictionary with task parameters
-        process_id: Unique process identifier
-    
-    Returns:
-        Tuple of (game_results, process_stats)
     """
     start_time = time.time()
     
@@ -261,33 +137,21 @@ def evaluation_worker_process(gpu_device: str, num_games: int, task_config: Dict
         num_simulations = task_config['num_simulations']
         old_model_path = task_config['old_model_path']
         new_model_path = task_config['new_model_path']
-        starting_game_id = task_config.get('starting_game_id', process_id * num_games)
+        starting_game_id = process_id * num_games
         
         print(f"Process {process_id}: Starting on {gpu_device} with {num_games} evaluation games")
         
-        # Setup device
         device = torch.device(gpu_device)
-        
-        # Load both models (each process gets its own copies)
-        model_load_start = time.time()
         old_model = md.ChessNet()
         new_model = md.ChessNet()
-        
         old_model.to(device)
         new_model.to(device)
         
-        # Load weights
-        old_state = torch.load(old_model_path, map_location=device, weights_only=True)
-        new_state = torch.load(new_model_path, map_location=device, weights_only=True)
-        
-        old_model.load_state_dict(old_state)
-        new_model.load_state_dict(new_state)
-        
+        old_model.load_state_dict(torch.load(old_model_path, map_location=device, weights_only=True))
         old_model.eval()
+
+        new_model.load_state_dict(torch.load(new_model_path, map_location=device, weights_only=True))
         new_model.eval()
-        
-        model_load_time = time.time() - model_load_start
-        print(f"Process {process_id}: Both models loaded successfully on {gpu_device}")
         
         # Play evaluation games
         game_results = []
@@ -341,13 +205,11 @@ def evaluation_worker_process(gpu_device: str, num_games: int, task_config: Dict
                     game_times.append(game_result['game_time_seconds'])
                     move_counts.append(game_result['move_count'])
                     
-                    # Collect ending reason
                     if 'result_str' in game_result:
                         game_ending_reasons.append(game_result['result_str'])
                     else:
                         game_ending_reasons.append("Unknown ending reason")
                     
-                    # Count wins from new model's perspective
                     result = game_result['result']
                     if result == 1.0:  # White wins
                         if white_is_new:
@@ -355,11 +217,11 @@ def evaluation_worker_process(gpu_device: str, num_games: int, task_config: Dict
                         else:
                             old_model_wins += 1
                     elif result == -1.0:  # Black wins
-                        if not white_is_new:  # Black is new model
+                        if not white_is_new:
                             new_model_wins += 1
                         else:
                             old_model_wins += 1
-                    else:  # Draw
+                    else:
                         draws += 1
                 
                 game_time = time.time() - game_start_time
@@ -367,9 +229,7 @@ def evaluation_worker_process(gpu_device: str, num_games: int, task_config: Dict
                 
             except Exception as e:
                 print(f"Process {process_id}: Error in evaluation game {game_num + 1}: {e}")
-                # Add error as ending reason
                 game_ending_reasons.append(f"Game error: {str(e)}")
-                # Add error result
                 game_results.append({
                     'game_id': starting_game_id + game_num,
                     'error': str(e),
@@ -377,11 +237,8 @@ def evaluation_worker_process(gpu_device: str, num_games: int, task_config: Dict
                 })
                 continue
         
-        # Create process statistics
         avg_game_time = sum(game_times) / len(game_times) if game_times else 0
         avg_moves = sum(move_counts) / len(move_counts) if move_counts else 0
-        
-        # Count ending reasons
         ending_reason_counts = {}
         for reason in game_ending_reasons:
             ending_reason_counts[reason] = ending_reason_counts.get(reason, 0) + 1
@@ -392,7 +249,6 @@ def evaluation_worker_process(gpu_device: str, num_games: int, task_config: Dict
             start_time=start_time,
             tasks_completed=games_completed,
             tasks_requested=num_games,
-            model_load_time_seconds=model_load_time,
             new_model_wins=new_model_wins,
             old_model_wins=old_model_wins,
             draws=draws,
@@ -406,25 +262,12 @@ def evaluation_worker_process(gpu_device: str, num_games: int, task_config: Dict
         
         print(f"Process {process_id}: Completed {games_completed}/{num_games} evaluation games")
         print(f"Process {process_id}: Results - New: {new_model_wins}, Old: {old_model_wins}, Draws: {draws}")
-        
-        # Explicit GPU memory cleanup
         cleanup_gpu_memory(device, process_id, [old_model, new_model])
         
         return game_results, process_stats
         
     except Exception as e:
         print(f"Process {process_id}: Fatal error: {e}")
-        traceback.print_exc()
-        
-        # Cleanup on error
-        models_to_cleanup = []
-        if 'old_model' in locals():
-            models_to_cleanup.append(locals()['old_model'])
-        if 'new_model' in locals():
-            models_to_cleanup.append(locals()['new_model'])
-        
-        if models_to_cleanup:
-            cleanup_gpu_memory(locals().get('device', torch.device('cpu')), process_id, models_to_cleanup)
         
         return [], create_process_statistics(
             process_id=process_id, 
@@ -436,56 +279,33 @@ def evaluation_worker_process(gpu_device: str, num_games: int, task_config: Dict
         )
 
 
-def play_single_evaluation_game(white_model, black_model, num_simulations: int, device: torch.device,
-                               game_id: int, white_is_new: bool, old_model_path: str, new_model_path: str,
-                               process_id: int, game_num: int, total_games: int) -> Dict:
+def play_single_evaluation_game(white_model, black_model, num_simulations, device, game_id, white_is_new,
+                                old_model_path, new_model_path, process_id, game_num, total_games):
     """
     Play a single competitive game between two models with private MCTS trees
-    
-    Args:
-        white_model: Model playing white
-        black_model: Model playing black
-        num_simulations: MCTS simulations per move
-        device: PyTorch device
-        game_id: Unique game identifier
-        white_is_new: Whether white model is the new model
-        old_model_path: Path to old model (for result tracking)
-        new_model_path: Path to new model (for result tracking)
-    
-    Returns:
-        Dictionary with game results
     """
-    import chess
-    
     start_time = time.time()
     
     try:
-        # Initialize with Chess960 (Fischer Random) starting position
-        chess960_position = random.randint(0, 959)  # 960 possible positions
-        board = chess.Board.from_chess960_pos(chess960_position)
+        board = chess.Board.from_chess960_pos(random.randint(0, 959))
         game_history = []
         move_count = 0
         
-        print(f"Process {process_id}: Game {game_num}/{total_games}: Starting Chess960 position {chess960_position}")
         print(f"Process {process_id}: Game {game_num}/{total_games}: Starting FEN: {board.fen()}")
-        print()
+        print('\n')
         
-        # Initialize private MCTS trees for each model
         white_tree = None
         black_tree = None
         
-        while not board.is_game_over() and move_count < 800:  # Early stopping
-            # Select model and tree based on whose turn it is
+        while not board.is_game_over() and move_count < 800:
             current_model = white_model if board.turn else black_model
             current_tree = white_tree if board.turn else black_tree
             current_player = "White" if board.turn else "Black"
-            
-            # Print move information like in self-play
-            print(f"Process {process_id}: Game {game_num}/{total_games}, Move {move_count + 1}, {current_player} to move")
+            print(f"Move {move_count + 1}, {current_player} to move")
             
             try:
                 # Get best move using private tree (with subtree reuse)
-                best_move, selected_child = get_best_move_with_tree_reuse(
+                best_move, selected_child = return_move_and_child(
                     model=current_model,
                     board_fen=board.fen(),
                     num_simulations=num_simulations,
@@ -499,18 +319,16 @@ def play_single_evaluation_game(white_model, black_model, num_simulations: int, 
                     print(f"Process {process_id}: Game {game_num}/{total_games}: No legal moves available")
                     break
                 
-                # Print selected move like in self-play
                 model_info = "New" if (board.turn and white_is_new) or (not board.turn and not white_is_new) else "Old"
-                print(f"Process {process_id}: Game {game_num}/{total_games}: Selected move: {best_move} ({model_info} model)")
-                print()  # Add newline between moves like self-play
+                print(f"Selected move: {best_move} ({model_info} model), [Process {process_id}] - Game {game_num}/{total_games}")
+                print()
                 
                 # Update the tree for the current player
-                if board.turn:  # White's turn
+                if board.turn:
                     white_tree = selected_child
-                else:  # Black's turn
+                else:
                     black_tree = selected_child
-                
-                # Apply move
+
                 move_obj = chess.Move.from_uci(best_move)
                 board.push(move_obj)
                 game_history.append(board.copy())
@@ -522,7 +340,6 @@ def play_single_evaluation_game(white_model, black_model, num_simulations: int, 
         
         # Determine game result
         if board.is_checkmate():
-            # Winner gets +1, loser gets -1
             result = -1.0 if board.turn else 1.0
             result_str = "Black wins" if result == -1.0 else "White wins"
         elif board.is_stalemate() or board.is_insufficient_material() or \
@@ -540,7 +357,7 @@ def play_single_evaluation_game(white_model, black_model, num_simulations: int, 
         
         game_result = {
             'game_id': game_id,
-            'result': result,  # From White's perspective: +1=White wins, 0=Draw, -1=Black wins
+            'result': result,
             'result_str': result_str,
             'move_count': move_count,
             'game_time_seconds': game_time,
@@ -554,9 +371,57 @@ def play_single_evaluation_game(white_model, black_model, num_simulations: int, 
         
     except Exception as e:
         print(f"Process {process_id}: Game {game_num}/{total_games}: Fatal error: {e}")
-        traceback.print_exc()
         return {
             'game_id': game_id,
             'error': str(e),
             'game_time_seconds': time.time() - start_time
         }
+    
+def return_move_and_child(model, board_fen, num_simulations, device,
+                                 game_history=None, existing_tree=None, temperature=0.0, c_puct=2.0):
+    """
+    Get the best move for a given position using MCTS with optional tree reuse
+    """
+    
+    board = chess.Board(board_fen)
+    if existing_tree is not None and existing_tree.state == board_fen:
+        root = existing_tree
+        print(f"Reusing MCTS tree (N={root.N}, children={len(root.children)})")
+    else:
+        root = None
+        
+        if existing_tree is not None:
+            for child in existing_tree.children:
+                if child.state == board_fen:
+                    child.parent = None
+                    root = child
+                    print(f"Promoting child to root (N={root.N}, children={len(root.children)})")
+                    break
+        
+        if root is None:
+            root = mt.MTCSNode(
+                team=board.turn,
+                state=board_fen,
+                action=None,
+                n=0,
+                w=0.0,
+                q=0.0,
+                p=1.0
+            )
+            print("Created fresh MCTS root")
+    
+    root = mt.mcts_search(root, model, num_simulations, device, game_history, add_root_noise=False, c_puct=c_puct)
+
+    if temperature == 0.0:
+        best_child = max(root.children, key=lambda x: x.N)
+        best_move = best_child.action
+        selected_child = best_child
+    else:
+        #Should never be this btw, eval games should be deterministic
+        best_move, selected_child = mt.select_move(root, temperature)
+    
+    if selected_child is not None:
+        selected_child.parent = None
+    
+    return best_move, selected_child
+

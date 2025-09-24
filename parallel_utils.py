@@ -9,7 +9,6 @@ and model evaluation, reducing code duplication and ensuring consistent behavior
 import torch
 import multiprocessing as mp
 import time
-from typing import List, Tuple, Dict, Any, Union
 
 
 def detect_available_gpus():
@@ -42,8 +41,8 @@ def detect_available_gpus():
     return gpu_info
 
 
-def calculate_optimal_processes_per_gpu(gpu_info: List[Dict], cpu_utilization: float = 0.90, 
-                                      max_processes_per_gpu: int = None) -> int:
+def calculate_optimal_processes_per_gpu(gpu_info, cpu_utilization: float = 0.90, 
+                                      max_processes_per_gpu: int = None):
     """
     Calculate optimal number of processes per GPU based on hardware
     """
@@ -72,7 +71,7 @@ def calculate_optimal_processes_per_gpu(gpu_info: List[Dict], cpu_utilization: f
     return optimal_processes
 
 
-def calculate_workload_distribution(total_tasks: int, gpu_info: List[Dict], processes_per_gpu: int) -> Dict[str, List[int]]:
+def calculate_workload_distribution(total_tasks: int, gpu_info, processes_per_gpu: int):
     """
     Distribute tasks across GPUs and processes with balanced GPU utilization
     """
@@ -94,7 +93,7 @@ def calculate_workload_distribution(total_tasks: int, gpu_info: List[Dict], proc
     return distribution
 
 
-def cleanup_gpu_memory(device: torch.device, process_id: int = None, models: List = None):
+def cleanup_gpu_memory(device: torch.device, process_id: int = None, models = None):
     """
     Perform explicit GPU memory cleanup
     """
@@ -136,7 +135,7 @@ def final_gpu_cleanup():
 
 
 def create_process_statistics(process_id: int, gpu_device: str, start_time: float, 
-                            tasks_completed: int, tasks_requested: int, **kwargs) -> Dict[str, Any]:
+                            tasks_completed: int, tasks_requested: int, **kwargs):
     """
     Create standardized process statistics dictionary
     """
@@ -157,10 +156,10 @@ def create_process_statistics(process_id: int, gpu_device: str, start_time: floa
     return base_stats
 
 
-def run_parallel_task_execution(task_config: Dict[str, Any], 
+def run_parallel_task_execution(task_config, 
                                worker_function,
                                cpu_utilization: float = 0.90,
-                               max_processes_per_gpu: int = None) -> Tuple[List, List]:
+                               max_processes_per_gpu: int = None):
 
     print('\n')
     print("="*60)
