@@ -1,19 +1,17 @@
 #!/usr/bin/env python3
 """
-Unified Model Evaluation Script for Aldarion Chess Engine
+Model Evaluation Script
 
 This script uses unified efficient process management for model evaluation
 to evaluate two chess models against each other. Each process plays multiple games
-sequentially instead of creating one process per game.
+sequentially.
 """
 
 import os
 import sys
 import argparse
 import time
-import pickle
 from datetime import datetime
-from typing import Dict, List
 
 # Import unified modules
 from parallel_utils import run_parallel_task_execution
@@ -22,30 +20,20 @@ from parallel_workers import evaluation_worker_process
 
 def evaluate_models(old_model_path: str, new_model_path: str, 
                            num_games: int, num_simulations: int,
-                           cpu_utilization: float = 0.8) -> Dict:
+                           cpu_utilization: float = 0.8):
     """
     Evaluate two models against each other using unified parallel processing
-    
-    Args:
-        old_model_path: Path to current best model
-        new_model_path: Path to newly trained model
-        num_games: Total number of games to play
-        num_simulations: MCTS simulations per move
-        cpu_utilization: Target CPU utilization
-    
-    Returns:
-        Dictionary with evaluation results
     """
     print("="*60)
-    print("UNIFIED MODEL EVALUATION")
+    print("MODEL EVALUATION")
     print("="*60)
+    print('\n')
     print(f"Old model: {os.path.basename(old_model_path)}")
     print(f"New model: {os.path.basename(new_model_path)}")
     print(f"Games: {num_games}")
     print(f"Simulations per move: {num_simulations}")
     print(f"CPU utilization: {cpu_utilization*100:.0f}%")
     
-    # Create task configuration
     task_config = {
         'total_tasks': num_games,
         'num_simulations': num_simulations,
@@ -54,7 +42,6 @@ def evaluate_models(old_model_path: str, new_model_path: str,
         'starting_game_id': 0
     }
     
-    # Execute parallel evaluation
     start_time = time.time()
     game_results, process_statistics = run_parallel_task_execution(
         task_config=task_config,
@@ -63,13 +50,8 @@ def evaluate_models(old_model_path: str, new_model_path: str,
     )
     execution_time = time.time() - start_time
     
-    # Analyze results
     successful_games = [r for r in game_results if 'error' not in r]
     failed_games = [r for r in game_results if 'error' in r]
-    
-    if len(successful_games) == 0:
-        print("No games completed successfully!")
-        return {'error': 'No successful games'}
     
     # Count results from new model's perspective
     new_model_wins = 0
@@ -103,39 +85,6 @@ def evaluate_models(old_model_path: str, new_model_path: str,
     decisive_games = new_model_wins + old_model_wins
     traditional_win_rate = new_model_wins / decisive_games * 100 if decisive_games > 0 else 0
     
-    # Calculate aggregate statistics from process stats
-    total_processes = len([s for s in process_statistics if 'error' not in s])
-    avg_games_per_process = total_games_played / total_processes if total_processes > 0 else 0
-    
-    # Evaluation summary
-    print("=" * 60)
-    print("EVALUATION COMPLETE")
-    print("=" * 60)
-    print(f"Total execution time: {execution_time:.2f} seconds ({execution_time/60:.1f} minutes)")
-    print(f"Games played: {total_games_played}/{num_games}")
-    print(f"Failed games: {len(failed_games)}")
-    print(f"Processes used: {total_processes}")
-    print(f"Average games per process: {avg_games_per_process:.1f}")
-    
-    print(f"\nResults (from new model's perspective):")
-    print(f"  New model wins: {new_model_wins} ({new_model_wins/total_games_played*100:.1f}%)")
-    print(f"  Old model wins: {old_model_wins} ({old_model_wins/total_games_played*100:.1f}%)")
-    print(f"  Draws: {draws} ({draws/total_games_played*100:.1f}%)")
-    print(f"  Decisive games: {decisive_games}/{total_games_played} ({decisive_games/total_games_played*100:.1f}%)")
-    
-    print(f"\nEvaluation metrics:")
-    print(f"  Score-based rate: {new_model_score_rate:.1f}% (wins + 0.5×draws) ← PRIMARY METRIC")
-    print(f"  Traditional win rate: {traditional_win_rate:.1f}% (wins among decisive games)")
-    print(f"  New model score: {new_model_score:.1f}/{total_games_played} points")
-    
-    if successful_games:
-        avg_game_time = sum(g['game_time_seconds'] for g in successful_games) / len(successful_games)
-        avg_moves = sum(g['move_count'] for g in successful_games) / len(successful_games)
-        print(f"\nGame statistics:")
-        print(f"  Average game time: {avg_game_time:.1f} seconds")
-        print(f"  Average moves per game: {avg_moves:.1f}")
-        print(f"  Games per minute: {total_games_played / (execution_time/60):.1f}")
-    
     return {
         'new_model_wins': new_model_wins,
         'old_model_wins': old_model_wins,
@@ -152,75 +101,74 @@ def evaluate_models(old_model_path: str, new_model_path: str,
     }
 
 
-def save_evaluation_results(results: Dict, old_model_path: str, new_model_path: str, 
-                          output_dir: str = None) -> str:
+def save_evaluation_results(results, old_model_path: str, new_model_path: str, 
+                          output_dir: str = None):
     """
     Save evaluation results and statistics
-    
-    Args:
-        results: Evaluation results dictionary
-        old_model_path: Path to old model
-        new_model_path: Path to new model
-        output_dir: Optional output directory (default: evaluation_results/)
-    
-    Returns:
-        Full path where data was saved
     """
-    # Set default directory if not specified
+
     if output_dir is None:
         output_dir = "evaluation_results"
     
-    # Generate filename
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     old_name = os.path.splitext(os.path.basename(old_model_path))[0]
     new_name = os.path.splitext(os.path.basename(new_model_path))[0]
-    output_filename = f"evaluation_{old_name}_vs_{new_name}_{timestamp}.pkl"
-    
-    # Create directories if they don't exist
+    stats_filename = f"evaluation_{old_name}_vs_{new_name}_{timestamp}_stats.txt"
     os.makedirs(output_dir, exist_ok=True)
+    stats_path = os.path.join(output_dir, stats_filename)
     
-    # Generate full path
-    results_path = os.path.join(output_dir, output_filename)
+    with open(stats_path, 'w') as f:
+        f.write("="*60 + "\n")
+        f.write("MODEL EVALUATION RESULTS\n")
+        f.write("="*60 + "\n\n")
+        
+        f.write(f"Old model: {os.path.basename(old_model_path)}\n")
+        f.write(f"New model: {os.path.basename(new_model_path)}\n")
+        f.write(f"Timestamp: {datetime.now().isoformat()}\n\n")
+        
+        f.write(f"Games played: {results['total_games']}\n")
+        f.write(f"Simulations per move: {results.get('num_simulations', 'N/A')}\n")
+        f.write(f"Execution time: {results['execution_time']:.2f} seconds ({results['execution_time']/60:.1f} minutes)\n\n")
+        
+        f.write("="*60 + "\n")
+        f.write("GAME OUTCOMES\n")
+        f.write("="*60 + "\n\n")
+        
+        total = results['total_games']
+        f.write(f"New model wins: {results['new_model_wins']} ({results['new_model_wins']/total*100:.1f}%)\n")
+        f.write(f"Old model wins: {results['old_model_wins']} ({results['old_model_wins']/total*100:.1f}%)\n")
+        f.write(f"Draws: {results['draws']} ({results['draws']/total*100:.1f}%)\n")
+        f.write(f"Decisive games: {results['decisive_games']}/{total} ({results['decisive_games']/total*100:.1f}%)\n\n")
+        
+        f.write("="*60 + "\n")
+        f.write("EVALUATION METRICS\n")
+        f.write("="*60 + "\n\n")
+        
+        f.write(f"Score-based rate: {results['score_rate']:.1f}% (wins + 0.5×draws) ← PRIMARY METRIC\n")
+        f.write(f"Traditional win rate: {results['traditional_win_rate']:.1f}% (wins among decisive games)\n")
+        f.write(f"New model score: {results['new_model_score']:.1f}/{total} points\n\n")
+        
+        if results.get('process_statistics'):
+            f.write("="*60 + "\n")
+            f.write("PROCESS STATISTICS\n")
+            f.write("="*60 + "\n\n")
+            
+            for i, stats in enumerate(results['process_statistics']):
+                if 'error' in stats:
+                    continue
+                f.write(f"Process {i}: {stats.get('gpu_device', 'N/A')}\n")
+                f.write(f"  Games completed: {stats.get('tasks_completed', 0)}\n")
+                f.write(f"  New model wins: {stats.get('new_model_wins', 0)}\n")
+                f.write(f"  Old model wins: {stats.get('old_model_wins', 0)}\n")
+                f.write(f"  Draws: {stats.get('draws', 0)}\n\n")
     
-    # Add metadata to results
-    results['metadata'] = {
-        'old_model_path': old_model_path,
-        'new_model_path': new_model_path,
-        'timestamp': datetime.now().isoformat(),
-        'evaluation_type': 'unified_parallel'
-    }
-    
-    # Save results
-    with open(results_path, 'wb') as f:
-        pickle.dump(results, f)
-    
-    print(f"Evaluation results saved to: {results_path}")
-    return results_path
+    print(f"Evaluation results saved to: {stats_path}")
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Unified Model Evaluation for Aldarion Chess Engine',
+        description='Model Evaluation for Aldarion Chess Engine',
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  # Basic evaluation
-  python3 evaluate_models.py --old_model model_v1.pth --new_model model_v2.pth --num_games 30 --num_simulations 200
-  
-  # High-quality evaluation
-  python3 evaluate_models.py --old_model model_weights.pth --new_model model_weights_v5.pth --num_games 100 --num_simulations 400
-  
-  # Fast evaluation with reduced CPU usage
-  python3 evaluate_models.py --old_model current_best.pth --new_model candidate.pth --num_games 200 --num_simulations 800 --cpu_utilization 0.5
-  
-  # Save results to custom directory
-  python3 evaluate_models.py --old_model model_v1.pth --new_model model_v2.pth --num_games 50 --output Iterations/Iteration_1
-
-Notes:
-- Score-based win rate is the primary metric (wins + 0.5*draws)
-- New model win rate >55% typically means the new model is significantly stronger
-- Each process plays multiple games sequentially for better efficiency
-        """
     )
     
     parser.add_argument('--old_model', type=str, required=True,
@@ -239,24 +187,9 @@ Notes:
                         help='Output directory for evaluation results (default: evaluation_results/)')
     
     args = parser.parse_args()
-    
-    # Validate arguments
-    if not os.path.exists(args.old_model):
-        print(f"Error: Old model file not found: {args.old_model}")
-        sys.exit(1)
-    
-    if not os.path.exists(args.new_model):
-        print(f"Error: New model file not found: {args.new_model}")
-        sys.exit(1)
-    
-    # Create necessary directories
+
     os.makedirs("evaluation_results", exist_ok=True)
-    
-    # Run evaluation
     try:
-        print(f"  Old model: {args.old_model}")
-        print(f"  New model: {args.new_model}")
-        print(f"  Target: >{args.win_threshold}% score rate for acceptance")
         
         results = evaluate_models(
             old_model_path=args.old_model,
@@ -266,27 +199,18 @@ Notes:
             cpu_utilization=args.cpu_utilization
         )
         
-        if 'error' in results:
-            print(f"Evaluation failed: {results['error']}")
-            sys.exit(1)
+        save_evaluation_results(results, args.old_model, args.new_model, args.output)
         
-        # Save results
-        results_file = save_evaluation_results(results, args.old_model, args.new_model, args.output)
-        
-        # Determine acceptance/rejection
         score_rate = results['score_rate']
         if score_rate > args.win_threshold:
             print(f"\nACCEPT NEW MODEL!")
             print(f"New model score rate ({score_rate:.1f}%) exceeds threshold ({args.win_threshold}%)")
-            sys.exit(0)  # Success code for acceptance
+            sys.exit(0)
         else:
             print(f"\nREJECT NEW MODEL!")
             print(f"New model score rate ({score_rate:.1f}%) below threshold ({args.win_threshold}%)")
-            sys.exit(1)  # Failure code for rejection
+            sys.exit(1)
             
-    except KeyboardInterrupt:
-        print(f"\nEvaluation interrupted by user")
-        sys.exit(1)
     except Exception as e:
         print(f"Fatal error: {e}")
         import traceback
@@ -295,7 +219,6 @@ Notes:
 
 
 if __name__ == "__main__":
-    # Set multiprocessing start method for compatibility
     import multiprocessing as mp
     mp.set_start_method('spawn', force=True)
     main()

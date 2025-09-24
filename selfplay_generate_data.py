@@ -5,7 +5,6 @@ import argparse
 import time
 import pickle
 from datetime import datetime
-from typing import List, Dict
 import multiprocessing as mp
 
 # Import unified modules
@@ -19,12 +18,12 @@ def generate_selfplay_data(total_games: int, num_simulations: int,
                           cpu_utilization: float = 0.90,
                           max_processes_per_gpu: int = None,
                           output_dir: str = None,
-                          command_info: Dict = None) -> str:
+                          command_info = None):
     """
     Generate self-play training data using parallel processing
     """
     print("="*60)
-    print("UNIFIED SELF-PLAY DATA GENERATION")
+    print("SELF-PLAY DATA GENERATION")
     print("="*60)
     print(f"Total games: {total_games}")
     print(f"Simulations per move: {num_simulations}")
@@ -33,7 +32,6 @@ def generate_selfplay_data(total_games: int, num_simulations: int,
     print(f"Model: {os.path.basename(model_path)}")
     print(f"CPU utilization: {cpu_utilization*100:.0f}%")
     
-    # Create task configuration
     task_config = {
         'total_tasks': total_games,
         'num_simulations': num_simulations,
@@ -42,7 +40,6 @@ def generate_selfplay_data(total_games: int, num_simulations: int,
         'model_path': model_path
     }
     
-    # Execute parallel self-play
     start_time = time.time()
     training_data, process_statistics = run_parallel_task_execution(
         task_config=            task_config,
@@ -64,7 +61,7 @@ def generate_selfplay_data(total_games: int, num_simulations: int,
     return saved_file
 
 
-def save_training_data(training_data: List, process_stats: List, output_dir: str = None, command_info: Dict = None) -> str:
+def save_training_data(training_data, process_stats, output_dir: str = None, command_info = None):
     """
     Save training data and process statistics
     """
@@ -72,7 +69,6 @@ def save_training_data(training_data: List, process_stats: List, output_dir: str
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_filename = f"selfplay_data_{timestamp}.pkl"
     
-    # Set default directories if not specified
     if output_dir is None:
         main_data_dir = "training_data"
         stats_data_dir = "training_data_stats"
@@ -87,11 +83,11 @@ def save_training_data(training_data: List, process_stats: List, output_dir: str
     stats_filename = f"{base_filename}_stats.txt"
     stats_path = os.path.join(stats_data_dir, stats_filename)
     
-    # Save training data
+    # -- Saving Training Data -- #
     with open(main_data_path, 'wb') as f:
         pickle.dump(training_data, f)
     
-    # Save statistics with command information as text
+    # -- Saving Stats information -- #
     with open(stats_path, 'w') as f:
         # Command used section
         if command_info and 'command_line' in command_info:
@@ -127,7 +123,6 @@ def save_training_data(training_data: List, process_stats: List, output_dir: str
                     pct = (count / total_games * 100) if total_games > 0 else 0
                     f.write(f"               {reason}: {count} ({pct:.1f}%)\n")
         
-        # Summary section
         f.write("\n" + "="*60 + "\n")
         f.write("SUMMARY:\n")
         f.write("="*60 + "\n")
@@ -135,7 +130,6 @@ def save_training_data(training_data: List, process_stats: List, output_dir: str
         total_tasks = sum(s.get('tasks_completed', 0) for s in process_stats)
         total_examples = sum(s.get('training_examples', 0) for s in process_stats)
         
-        # Aggregate game outcomes
         total_white_wins = 0
         total_black_wins = 0
         total_draws = 0
@@ -245,10 +239,7 @@ def main():
         else:
             print(f"\nSelf-play data generation failed!")
             sys.exit(1)
-            
-    except KeyboardInterrupt:
-        print("\nInterrupted by user")
-        sys.exit(1)
+
     except Exception as e:
         print(f"Fatal error: {e}")
         import traceback

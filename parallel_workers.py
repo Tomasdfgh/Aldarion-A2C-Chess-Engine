@@ -11,6 +11,8 @@ import torch
 import time
 import traceback
 from typing import List, Tuple, Dict, Any
+import chess
+import random
 
 # Import existing modules
 import MTCS as mt
@@ -100,8 +102,8 @@ def selfplay_worker_process(gpu_device: str, num_games: int, task_config: Dict[s
                 continue
         
         # Calculate detailed statistics
-        white_wins = sum(1 for outcome in game_outcomes if outcome > 0)
-        black_wins = sum(1 for outcome in game_outcomes if outcome < 0)
+        white_wins = sum(1 for outcome in game_outcomes if outcome < 0)
+        black_wins = sum(1 for outcome in game_outcomes if outcome > 0)
         draws = sum(1 for outcome in game_outcomes if outcome == 0)
         
         avg_game_length = sum(game_lengths) / len(game_lengths) if game_lengths else 0
@@ -182,7 +184,6 @@ def get_best_move_with_tree_reuse(model, board_fen: str, num_simulations: int, d
     Returns:
         tuple: (best_move_uci, selected_child_node)
     """
-    import chess
     
     board = chess.Board(board_fen)
     
@@ -199,7 +200,8 @@ def get_best_move_with_tree_reuse(model, board_fen: str, num_simulations: int, d
             # Try to find a child that matches the current position
             for child in existing_tree.children:
                 if child.state == board_fen:
-                    root = mt.promote_child_to_root(child)
+                    child.parent = None
+                    root = child
                     print(f"Promoting child to root (N={root.N}, children={len(root.children)})")
                     break
         
@@ -234,7 +236,7 @@ def get_best_move_with_tree_reuse(model, board_fen: str, num_simulations: int, d
     
     # Prepare selected child for reuse by promoting it to root
     if selected_child is not None:
-        selected_child = mt.promote_child_to_root(selected_child)
+        selected_child.parent = None
     
     return best_move, selected_child
 
@@ -459,7 +461,6 @@ def play_single_evaluation_game(white_model, black_model, num_simulations: int, 
     
     try:
         # Initialize with Chess960 (Fischer Random) starting position
-        import random
         chess960_position = random.randint(0, 959)  # 960 possible positions
         board = chess.Board.from_chess960_pos(chess960_position)
         game_history = []

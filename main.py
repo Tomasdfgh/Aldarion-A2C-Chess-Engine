@@ -314,8 +314,7 @@ def run_evaluation_phase(iteration_folder, total_games, num_simulations):
     
     # Save results to the iteration folder
     from evaluate_models import save_evaluation_results
-    results_file = save_evaluation_results(results, str(old_model_path), str(new_model_path), str(iteration_folder))
-    print(f"Evaluation results saved to: {results_file}")
+    save_evaluation_results(results, str(old_model_path), str(new_model_path), str(iteration_folder))
     
     score_rate = results.get('score_rate', 0)
     threshold = 55.0
