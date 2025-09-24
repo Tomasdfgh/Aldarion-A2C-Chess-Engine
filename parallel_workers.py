@@ -73,7 +73,7 @@ def selfplay_worker_process(gpu_device: str, num_games: int, task_config: Dict[s
                 print(f"Process {process_id}: Game {game_num + 1}/{num_games}")
                 
                 # Use existing run_game function with game tracking info
-                training_data = mt.run_game(model, num_simulations, device, temperature=temperature, 
+                training_data, ending_reason = mt.run_game(model, num_simulations, device, temperature=temperature, 
                                           c_puct=c_puct, current_game=game_num + 1, total_games=num_games, process_id=process_id)
                 all_training_data.extend(training_data)
                 games_completed += 1
@@ -87,12 +87,8 @@ def selfplay_worker_process(gpu_device: str, num_games: int, task_config: Dict[s
                     outcome = training_data[-1][3]  # (board_fen, history_fens, move_probs, outcome)
                     game_outcomes.append(outcome)
                 
-                # Get the ending reason from the last completed game
-                ending_reason = mt.get_last_game_ending_reason()
-                if ending_reason:
-                    game_ending_reasons.append(ending_reason)
-                else:
-                    game_ending_reasons.append("Unknown ending reason")
+                # Store the ending reason
+                game_ending_reasons.append(ending_reason)
                 
                 game_time = time.time() - game_start_time
                 print(f"Process {process_id}: Game {game_num + 1} completed in {game_time:.1f}s, {len(training_data)} examples")

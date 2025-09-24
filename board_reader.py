@@ -4,24 +4,71 @@ import torch
 import torch.nn.functional as F
 
 
-#This function converts the current board into 14 current position planes (12 pieces + 2 repetition counters).
+'''
+This script is meant to analyze the board data and convert the board and history
+of the game to convert it to inputs for the model based on Alphazero's implementation.
+It is also meant to analyze the outputs of the model and convert it to proper
+legal move distributions to be played on the board.
+
+Detailed below is also how the current state and the game history is being represented
+as the input into the model:
+
+The model takes in a tensor of size (8, 8, 119). The first 112 planes is used to encode
+position history of the 8 time steps where each time steps uses 14 planes each. So
+8 * 14 = 112 planes.
+
+For each time step, the first 12 planes are used to encode the pieces on the board. Since
+there are 12 types of pieces (for both teams), each piece gets a plane where their current
+position is a 1 and 0 elsewhere.
+
+The last 2 planes are repetition counter 1 and 2 used to detect draws:
+Plane 12 (Repetition Counter 1): Counts how many times the current position has appeared 
+in the game history. It compares the FEN position (board state + turn + castling rights + 
+en passant) against all previous positions. The count is capped at 3 and normalized to 0-1
+range (dividing by 3). This helps detect threefold repetition draws.
+
+Plane 13 (Repetition Counter 2): Tracks the halfmove clock (moves since last pawn move or
+capture), normalized to 0-1 by dividing by 50. This helps detect the 50-move rule for draws.
+
+The last 7 planes is to encode game state information.
+
+The first 4 planes is filled with all 1s or 0s if the current player's king side castling is available,
+if the current player's queen-side castling is available (honestly i didnt even know you can castle queens),
+if the opponent's king side castling is available, and if the opponent's queen-side castling is available.
+
+The 5th plane has a single 1 at the en passant target position if an en passant is available, 
+if not all 0s. The last 2 planes is to denote the current player's colour (all 1s if white, 
+0s if black), and total move count (which is a normalized move counter).
+
+IMPORTANT: AlphaZero always plays from the current player's perspective. This means the board is 
+always oriented so that the current player's pieces face downward (towards rank 1). When it's Black's 
+turn, the entire board representation is flipped 180 degrees so Black's pieces face downward.
+
+=================================================================
+These Functions below are meant to represent the board as Inputs
+=================================================================
+'''
+
 def board_to_array(board, game_history=None):
+	'''
+	This function is used to encode the pieces in a board. It is used to convert the board
+	into 14 current position planes (12 pieces + 2 repetition counters). This function should
+	be used for each of the 8 time steps used to encode the input
+	'''
 	board_obj = chess.Board(board)
-	
 	array = np.zeros((14, 8, 8))
 	piece_types = [chess.PAWN, chess.ROOK, chess.KNIGHT, chess.BISHOP, chess.QUEEN, chess.KING]
 	
-	# Fill piece planes (planes 0-11)
 	# AlphaZero format: Current player pieces (0-5), then opponent pieces (6-11)
 	current_player = board_obj.turn
 	opponent = not current_player
 	
 	for piece_idx, piece_type in enumerate(piece_types):
-		# Current player's pieces go in planes 0-5
 		current_player_squares = board_obj.pieces(piece_type, current_player)
 		for square in current_player_squares:
-			row = 7 - (square // 8)  # Convert to matrix coordinates
+			row = 7 - (square // 8)
 			col = square % 8
+
 			# Flip board if current player is Black
 			if current_player == chess.BLACK:
 				row = 7 - row
@@ -30,47 +77,71 @@ def board_to_array(board, game_history=None):
 		# Opponent's pieces go in planes 6-11
 		opponent_squares = board_obj.pieces(piece_type, opponent)
 		for square in opponent_squares:
-			row = 7 - (square // 8)  # Convert to matrix coordinates
+			row = 7 - (square // 8)
 			col = square % 8
-			# Flip board if current player is Black
 			if current_player == chess.BLACK:
 				row = 7 - row
 			array[piece_idx + 6][row][col] = 1
-	
-	# Repetition Counters (2 planes: 12-13)
+
 	if game_history:
-		# Repetition Counter 1 (plane 12) - Normalized repetition count for draw detection
-		# Include turn, castling rights, and en passant for accurate repetition rules
-		position_key = ' '.join(board_obj.fen().split()[:4])  # board + turn + castling + en passant
+		position_key = ' '.join(board_obj.fen().split()[:4])
 		repetition_count = sum(1 for hist_pos in game_history 
 		                      if ' '.join(hist_pos.fen().split()[:4]) == position_key)
-		array[12] = np.full((8, 8), min(repetition_count, 3) / 3.0)  # Normalize to 0-1, cap at 3
+		array[12] = np.full((8, 8), min(repetition_count, 3) / 3.0)
 		
-		# Repetition Counter 2 (plane 13) - Halfmove clock for 50-move rule
 		halfmove_clock = board_obj.halfmove_clock
-		array[13] = np.full((8, 8), min(halfmove_clock, 50) / 50.0)  # Normalize and cap at 50
+		array[13] = np.full((8, 8), min(halfmove_clock, 50) / 50.0)
 	else:
-		# Default values when no history available
-		array[12] = np.full((8, 8), 1/3.0)  # First occurrence (normalized)
-		array[13] = np.full((8, 8), board_obj.halfmove_clock / 50.0)  # Real halfmove clock
+		array[12] = np.full((8, 8), 1/3.0)
+		array[13] = np.full((8, 8), board_obj.halfmove_clock / 50.0)
+	
+	return torch.tensor(array)
+
+def board_to_game_state_array(board):
+	'''
+	This function takes the CURRENT (only) board, and create a 7 plane of 8 by 8 representation.
+	This is used as the last part of the total input representation.
+	'''
+	board_obj = chess.Board(board)
+	
+	array = np.zeros((7, 8, 8))
+	current_player = board_obj.turn
+	opponent = not current_player
+	
+
+	if board_obj.has_kingside_castling_rights(current_player):
+		array[0] = np.ones((8, 8))
+
+	if board_obj.has_queenside_castling_rights(current_player):
+		array[1] = np.ones((8, 8))
+	
+	if board_obj.has_kingside_castling_rights(opponent):
+		array[2] = np.ones((8, 8))
+	
+	if board_obj.has_queenside_castling_rights(opponent):
+		array[3] = np.ones((8, 8))
+	
+	if board_obj.ep_square is not None:
+		ep_row = 7 - (board_obj.ep_square // 8)
+		ep_col = board_obj.ep_square % 8
+
+		if current_player == chess.BLACK:
+			ep_row = 7 - ep_row
+		array[4][ep_row][ep_col] = 1
+	
+	array[5] = np.ones((8, 8)) if current_player == chess.WHITE else np.zeros((8, 8))
+	
+	move_count = board_obj.fullmove_number / 100.0
+	array[6] = np.full((8, 8), move_count)
 	
 	return torch.tensor(array)
 
 def board_to_full_alphazero_input(current_board, game_history=None):
 	"""
-	Creates the full AlphaZero input: 119 planes total
-	- 112 planes: 8 time steps × 14 planes each (12 pieces + 2 repetition counters)
-	- 7 planes: Current game state information
-	
-	Args:
-		current_board: chess.Board object OR FEN string for current position
-		game_history: List of chess.Board objects representing game history
-	
-	Returns:
-		torch.Tensor of shape (119, 8, 8)
+	Takes in the current board and game history. grab the last 7 time steps
+	then it should convert that into an input vector that is 8 by 8 (chess board) by 119 planes.
+	study up on why alphazero has 119 planes for its input for this to make sense.
 	"""
-	
-	# Convert current_board to chess.Board object if it's a string
 	if isinstance(current_board, str):
 		current_board = chess.Board(current_board)
 	
@@ -80,7 +151,6 @@ def board_to_full_alphazero_input(current_board, game_history=None):
 	# Ensure we have at least the current board in history
 	full_history = game_history + [current_board]
 	
-	# Get exactly 8 positions, padding with zeros if needed
 	last_8_positions = []
 	for i in range(8):
 		history_index = len(full_history) - 8 + i
@@ -89,7 +159,6 @@ def board_to_full_alphazero_input(current_board, game_history=None):
 		else:
 			last_8_positions.append(None)
 	
-	# Create arrays for each time step (112 planes total)
 	position_arrays = []
 	for i, board_pos in enumerate(last_8_positions):
 		if board_pos is not None:
@@ -99,76 +168,72 @@ def board_to_full_alphazero_input(current_board, game_history=None):
 			position_array = torch.zeros((14, 8, 8))
 		position_arrays.append(position_array)
 	
-	# Concatenate all position arrays (112 planes)
+
 	position_planes = torch.cat(position_arrays, dim=0)
-	
-	# Get game state information for current position (7 planes)
 	game_state_planes = board_to_game_state_array(current_board.fen())
-	
-	# Combine everything (112 + 7 = 119 planes)
-	full_input = torch.cat([position_planes, game_state_planes], dim=0)
+	full_input = torch.cat([position_planes, game_state_planes], dim=0) #<-- this should be 119 planes (similar to the actual alphazero paper). check here if not true
 	
 	return full_input
 
-def board_to_game_state_array(board):
-	board_obj = chess.Board(board)
-	
-	# Create 7 planes for game state information
-	array = np.zeros((7, 8, 8))
-	
-	# SECTION 2: GAME STATE INFORMATION (7 planes)
-	
-	# Castling Rights (4 planes: 0-3)
-	# Normalize to current player perspective
-	current_player = board_obj.turn
-	opponent = not current_player
-	
-	# Current Player King-side Castling (plane 0)
-	if board_obj.has_kingside_castling_rights(current_player):
-		array[0] = np.ones((8, 8))
-	
-	# Current Player Queen-side Castling (plane 1)
-	if board_obj.has_queenside_castling_rights(current_player):
-		array[1] = np.ones((8, 8))
-	
-	# Opponent King-side Castling (plane 2)
-	if board_obj.has_kingside_castling_rights(opponent):
-		array[2] = np.ones((8, 8))
-	
-	# Opponent Queen-side Castling (plane 3)
-	if board_obj.has_queenside_castling_rights(opponent):
-		array[3] = np.ones((8, 8))
-	
-	# En Passant (1 plane: 4)
-	if board_obj.ep_square is not None:
-		ep_row = 7 - (board_obj.ep_square // 8)
-		ep_col = board_obj.ep_square % 8
-		# Flip en passant coordinates if current player is Black
-		if current_player == chess.BLACK:
-			ep_row = 7 - ep_row
-		array[4][ep_row][ep_col] = 1
-	
-	# Current Player Color (plane 5)
-	array[5] = np.ones((8, 8))
-	
-	# Total Move Count (plane 6) - normalized
-	move_count = board_obj.fullmove_number / 100.0
-	array[6] = np.full((8, 8), move_count)
-	
-	return torch.tensor(array)
+
+'''
+=======================================================================
+These Functions below are meant to convert outputs to move distribution
+=======================================================================
+
+Detailed below is how Alphazero represents the output distribution:
+the model's policy head outputs 4672 logits, which can be broken down into
+a tensor of shape (8, 8, 73). This means that there are 73 planes to
+represent how moves are being made, and the 8 by 8 represents the board
+and where the piece is "from".
+
+The first 56 planes are for Queen-Line Moves where there are 8 possible 
+directions (north, northeast, east, and all that), and there are 7
+possible distances, so we got 7 * 8 = 56 planes. so for example, from
+a (8, 8, 73) tensor, if the logit from plane 7 is chosen at position d1,
+that means the piece from d1 is going north at a distance of 7.
+
+The next 8 planes represents the Knight moves. They are simple:
+
+Plane 56: Knight move (+2,+1) - 2 right, 1 up
+Plane 57: Knight move (+1,+2) - 1 right, 2 up  
+Plane 58: Knight move (-1,+2) - 1 left, 2 up
+Plane 59: Knight move (-2,+1) - 2 left, 1 up
+Plane 60: Knight move (-2,-1) - 2 left, 1 down
+Plane 61: Knight move (-1,-2) - 1 left, 2 down
+Plane 62: Knight move (+1,-2) - 1 right, 2 down
+Plane 63: Knight move (+2,-1) - 2 right, 1 down
+
+The next 9 planes are for Underpromotion moves (these are non queen promotions).
+Queen promotions use the queen-line planes (North direction, 1 square). These are 
+also basic so im not going to explain, instead I will just show which planes represent 
+what:
+
+Plane 64: Promote to Knight, Forward
+Plane 65: Promote to Knight, Capture Left
+Plane 66: Promote to Knight, Capture Right
+Plane 67: Promote to Bishop, Forward
+Plane 68: Promote to Bishop, Capture Left
+Plane 69: Promote to Bishop, Capture Right
+Plane 70: Promote to Rook, Forward
+Plane 71: Promote to Rook, Capture Left
+Plane 72: Promote to Rook, Capture Right
+
+One more important note is that alphazero policy distribution plays from the current
+player prespective. So if you the player is black, the board will have to be flipped
+180 degrees, then a move can be selected.
+'''
 
 def create_legal_move_mask(board):
 	"""
 	Create a mask for legal moves in 8x8x73 format
 	Returns tensor with True for legal moves, False for illegal moves
+	If terminal state (no legal moves) then just return an all false mask
 	"""
+
 	mask = torch.zeros(8, 8, 73, dtype=torch.bool)
 	legal_moves = list(board.legal_moves)
-	
-	# Safeguard: Check if position has legal moves (avoid mate/stalemate)
 	if len(legal_moves) == 0:
-		# Game is over - this shouldn't be in training data
-		# Return all-False mask and let caller handle it
 		return mask
 	
 	for move in legal_moves:
@@ -176,7 +241,6 @@ def create_legal_move_mask(board):
 			row, col, plane = uci_to_policy_index(str(move), board.turn)
 			mask[row, col, plane] = True
 		except ValueError:
-			# Skip moves that can't be encoded
 			continue
 	
 	return mask
@@ -215,19 +279,29 @@ def uci_to_policy_index(uci_move, current_player_turn=chess.WHITE):
 	implementation.
 	"""
 	
-	# Direction mappings (clockwise from North)
-	# Note: In our coordinate system, row 0 = rank 8, so North = negative row direction
-	DIRECTIONS = {
-		(-1, 0): 0,  # North (up the board, decreasing row)
-		(-1, 1): 1,  # Northeast  
-		(0, 1): 2,   # East
-		(1, 1): 3,   # Southeast
-		(1, 0): 4,   # South (down the board, increasing row)
-		(1, -1): 5,  # Southwest
-		(0, -1): 6,  # West
-		(-1, -1): 7  # Northwest
-	}
+	from_square = uci_move[:2]
+	to_square = uci_move[2:4]
+	promotion = uci_move[4:] if len(uci_move) > 4 else None
 	
+	# Convert squares to coordinates
+	def square_to_coord(square):
+		file = ord(square[0]) - ord('a')
+		rank = int(square[1]) - 1
+		row = 7 - rank
+		col = file
+		return row, col
+	
+	from_row, from_col = square_to_coord(from_square)
+	to_row, to_col = square_to_coord(to_square)
+	
+	# Flip board so if ur black, black faces downward direction
+	if current_player_turn == chess.BLACK:
+		from_row = 7 - from_row
+		to_row = 7 - to_row
+	
+	d_row = to_row - from_row
+	d_col = to_col - from_col
+
 	# Knight move patterns (original mapping)
 	KNIGHT_MOVES = [
 		(2, 1),   # 0
@@ -240,43 +314,15 @@ def uci_to_policy_index(uci_move, current_player_turn=chess.WHITE):
 		(2, -1)   # 7
 	]
 	
-	# Parse UCI move
-	from_square = uci_move[:2]
-	to_square = uci_move[2:4]
-	promotion = uci_move[4:] if len(uci_move) > 4 else None
-	
-	# Convert squares to coordinates
-	def square_to_coord(square):
-		file = ord(square[0]) - ord('a')  # a=0, b=1, ..., h=7
-		rank = int(square[1]) - 1         # 1=0, 2=1, ..., 8=7
-		row = 7 - rank                    # Convert to matrix coords (rank 8 = row 0)
-		col = file
-		return row, col
-	
-	from_row, from_col = square_to_coord(from_square)
-	to_row, to_col = square_to_coord(to_square)
-	
-	# Apply side-to-move normalization for Black
-	if current_player_turn == chess.BLACK:
-		from_row = 7 - from_row
-		to_row = 7 - to_row
-	
-	# Calculate movement vector
-	d_row = to_row - from_row
-	d_col = to_col - from_col
-	
-	# Check if it's a knight move
 	if (d_row, d_col) in KNIGHT_MOVES:
 		knight_index = KNIGHT_MOVES.index((d_row, d_col))
 		plane = 56 + knight_index
 		return from_row, from_col, plane
 	
-	# Check if it's an underpromotion
 	if promotion and promotion.lower() in ['n', 'b', 'r']:
 		piece_map = {'n': 0, 'b': 1, 'r': 2}
 		piece_index = piece_map[promotion.lower()]
 		
-		# Determine direction for underpromotion
 		if d_col == 0:
 			direction_index = 0  # Forward
 		elif d_col == -1:
@@ -288,33 +334,30 @@ def uci_to_policy_index(uci_move, current_player_turn=chess.WHITE):
 		
 		plane = 64 + direction_index * 3 + piece_index
 		return from_row, from_col, plane
-	
-	if d_row == 0 and d_col == 0:
-		raise ValueError(f"Invalid move (no movement): {uci_move}")
-	
-	# Find the direction and distance
+
+	# Note: row 0 = rank 8, so North = negative row direction
+	DIRECTIONS = {
+		(-1, 0): 0,  # North (up the board, decreasing row)
+		(-1, 1): 1,  # Northeast  
+		(0, 1): 2,   # East
+		(1, 1): 3,   # Southeast
+		(1, 0): 4,   # South (down the board, increasing row)
+		(1, -1): 5,  # Southwest
+		(0, -1): 6,  # West
+		(-1, -1): 7  # Northwest
+	}
+
+	#Final checks to grab move vector
 	if d_row == 0:
-		# Horizontal move
 		direction = (0, 1) if d_col > 0 else (0, -1)
 		distance = abs(d_col)
 	elif d_col == 0:
-		# Vertical move  
-		direction = (-1, 0) if d_row < 0 else (1, 0)  # Fixed: d_row < 0 means North (up)
+		direction = (-1, 0) if d_row < 0 else (1, 0)
 		distance = abs(d_row)
 	else:
-		# Diagonal move
-		if abs(d_row) != abs(d_col):
-			raise ValueError(f"Invalid diagonal move: {uci_move}")
 		# Normalize direction vector for diagonals
 		direction = (1 if d_row > 0 else -1, 1 if d_col > 0 else -1)
-		distance = abs(d_row)  # or abs(d_col), they're equal for diagonals
-	
-	if distance > 7:
-		raise ValueError(f"Move distance too large: {uci_move}")
-	
-	# Map direction to index
-	if direction not in DIRECTIONS:
-		raise ValueError(f"Invalid direction: {direction}")
+		distance = abs(d_row)
 	
 	direction_index = DIRECTIONS[direction]
 	plane = direction_index * 7 + (distance - 1)

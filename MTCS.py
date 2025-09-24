@@ -3,136 +3,19 @@ import board_reader as br
 import torch
 import numpy as np
 import math
-import random
-import json
-import os
-from datetime import datetime
-
-# Global variable to store the last game's ending reason for stats collection
-last_game_ending_reason = None
-
-def has_terminal_children(node):
-	"""
-	Check if any of the node's children are terminal (checkmate/stalemate)
-	Returns True if at least one child is terminal
-	"""
-	for child in node.children:
-		if child.is_terminal():
-			return True
-	return False
-
-def log_terminal_analysis(root, selected_move, c_puct=2.0):
-	"""
-	Log detailed analysis when root has terminal children but may not choose them
-	Saves to terminal_analysis_YYYYMMDD_HHMMSS.json
-	"""
-	# Create analysis directory if it doesn't exist
-	analysis_dir = "terminal_analysis"
-	os.makedirs(analysis_dir, exist_ok=True)
-	
-	# Generate filename with timestamp
-	timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-	filename = f"terminal_analysis_{timestamp}.json"
-	filepath = os.path.join(analysis_dir, filename)
-	
-	# Collect data
-	board = chess.Board(root.state)
-	analysis_data = {
-		"timestamp": timestamp,
-		"position_fen": root.state,
-		"side_to_move": "White" if board.turn else "Black",
-		"root_stats": {
-			"N": root.N,
-			"W": root.W,
-			"Q": root.Q,
-			"total_children": len(root.children)
-		},
-		"children_analysis": [],
-		"move_chosen": selected_move,
-		"terminal_moves_available": [],
-		"should_have_chosen_terminal": False
-	}
-	
-	# Analyze each child
-	best_terminal_child = None
-	best_terminal_q = float('-inf')
-	
-	for child in root.children:
-		child_board = chess.Board(child.state)
-		
-		# Calculate UCB score
-		ucb_score = calculate_ucb(root, child, c_puct) if child.N > 0 else float('inf')
-		
-		# Determine terminal status and type
-		terminal_info = None
-		if child.is_terminal():
-			if child_board.is_checkmate():
-				terminal_info = "checkmate"
-				analysis_data["terminal_moves_available"].append({
-					"move": child.action,
-					"type": "checkmate",
-					"Q": child.Q,
-					"N": child.N,
-					"UCB": ucb_score
-				})
-				if child.Q > best_terminal_q:
-					best_terminal_q = child.Q
-					best_terminal_child = child
-			elif child_board.is_stalemate():
-				terminal_info = "stalemate"
-			else:
-				terminal_info = "other_terminal"
-		
-		child_data = {
-			"move": child.action,
-			"N": child.N,
-			"W": child.W,
-			"Q": child.Q,
-			"P": child.P,
-			"UCB": ucb_score,
-			"terminal": terminal_info,
-			"chosen": child.action == selected_move
-		}
-		
-		analysis_data["children_analysis"].append(child_data)
-	
-	# Determine if we should have chosen a terminal move
-	if best_terminal_child and best_terminal_child.action != selected_move:
-		analysis_data["should_have_chosen_terminal"] = True
-		analysis_data["best_terminal_move"] = {
-			"move": best_terminal_child.action,
-			"Q": best_terminal_child.Q,
-			"N": best_terminal_child.N,
-			"UCB": calculate_ucb(root, best_terminal_child, c_puct)
-		}
-	
-	# Sort children by Q value (descending) for easier analysis
-	analysis_data["children_analysis"].sort(key=lambda x: x["Q"], reverse=True)
-	
-	# Save to file
-	try:
-		with open(filepath, 'w') as f:
-			json.dump(analysis_data, f, indent=2)
-		print(f"Terminal analysis logged to: {filepath}")
-		return filepath
-	except Exception as e:
-		print(f"Failed to save terminal analysis: {e}")
-		return None
-
-
 
 class MTCSNode:
 	def __init__(self, team, state, action, n, w, q, p, parent=None):
-		self.team = team		# True for White and False for Black
-		self.state = state  	# Contains the board state in fen string
-		self.action = action	# Action from the last state to get to this state
-		self.N = n		  		# Contains the number of of times action a has been taken from state s
-		self.W = w		  		# The Total Value of the next state
-		self.Q = q		  		# The mean value of the next state (W/N)
-		self.P = p		  		# The prior probability of selecting action a
-		self.parent = parent	# Parent node reference
-		self.children = []  	# List of all children
-		self.is_expanded = False # Track if node has been expanded
+		self.team = team			# bool with True for white
+		self.state = state  		# board fen string
+		self.action = action		# last state's action to this state
+		self.N = n		  			# Contains the number of of times action a has been taken from state s
+		self.W = w		  			# The Total Value of the next state
+		self.Q = q		  			# W/N
+		self.P = p		  			# The prior probability of selecting action a
+		self.parent = parent		# Parent node reference
+		self.children = []  		# List of all children
+		self.is_expanded = False 	# Track if node has been expanded
 
 	def add_child(self, child):
 		self.children.append(child)
@@ -146,7 +29,6 @@ class MTCSNode:
 		return board.is_game_over()
 
 def calculate_ucb(parent, child, c_puct=2.0):
-	"""Calculate UCB1 score with PUCT formula"""
 	q = child.Q
 	u = c_puct * child.P * math.sqrt(max(1, parent.N)) / (1 + child.N)
 	return -q + u
@@ -159,7 +41,6 @@ def select_node(root, c_puct=2.0):
 	current = root
 	
 	while not current.is_leaf() and not current.is_terminal():
-		# Calculate UCB for all children and select best
 		best_child = None
 		best_ucb = float('-inf')
 		
@@ -170,45 +51,28 @@ def select_node(root, c_puct=2.0):
 				best_child = child
 		
 		current = best_child
-	
+
 	return current
 
 def build_leaf_history(node, original_game_history, max_history=7):
 	"""
 	Build correct history for a leaf node by combining original game history 
 	with the MCTS tree path leading to this node.
-	
-	Args:
-		node: The leaf node to build history for
-		original_game_history: List of chess.Board objects from actual game
-		max_history: Maximum number of previous positions to include
-	
-	Returns:
-		List of chess.Board objects representing the last max_history positions
 	"""
-	# Collect path from leaf back to root (excluding the leaf itself)
+
 	mcts_path_fens = []
 	current = node.parent
 	
 	while current is not None:
 		mcts_path_fens.append(current.state)
 		current = current.parent
-	
-	# Reverse to get chronological order (root → ... → parent of leaf)
+
 	mcts_path_fens.reverse()
-	
-	# Combine original game history with MCTS path
-	# Original game history (already Board objects) + MCTS path (FEN strings)
 	combined_history = []
-	
-	# Add original game history
 	combined_history.extend(original_game_history)
-	
-	# Add MCTS path (convert FEN strings to Board objects)
 	for fen in mcts_path_fens:
 		combined_history.append(chess.Board(fen))
 	
-	# Take last max_history positions
 	if len(combined_history) > max_history:
 		combined_history = combined_history[-max_history:]
 	
@@ -224,34 +88,25 @@ def add_dirichlet_noise(policy_dict, alpha=0.3, noise_weight=0.25):
 	
 	if len(moves) == 0:
 		return policy_dict
-	
-	# Generate Dirichlet noise
 	noise = np.random.dirichlet([alpha] * len(moves))
-	
-	# Mix original probabilities with noise
+
 	noisy_policy = {}
 	for i, move in enumerate(moves):
 		noisy_policy[move] = (1 - noise_weight) * probs[i] + noise_weight * noise[i]
 	
 	return noisy_policy
 
-def expand_node(node, model, device, game_history=None, add_noise=False):
+def expand_node(node, model, device, game_history=None):
 	"""
 	Expand node by adding children for all legal moves
-	Returns the expanded node and its policy/value from neural network
+	Returns the value from the neural network evaluation
 	"""
 	if node.is_terminal() or node.is_expanded:
-		return node, 0.0
+		return 0.0 # <-- this 0 here is not a return for terminal states
 	
 	board = chess.Board(node.state)
-	legal_moves = list(board.legal_moves)
-	
-	if len(legal_moves) == 0:
-		return node, 0.0
-	
-	# Get neural network evaluation
 	with torch.no_grad():
-		# Build correct history for this leaf node
+
 		if game_history is None:
 			game_history = []
 		
@@ -259,19 +114,15 @@ def expand_node(node, model, device, game_history=None, add_noise=False):
 		input_tensor = br.board_to_full_alphazero_input(board, leaf_history)
 		input_tensor = input_tensor.unsqueeze(0).float().to(device)
 		
-		# Get model predictions
 		policy_logits, value = model(input_tensor)
 		policy_logits = policy_logits.squeeze(0)
 		value = value.squeeze(0).item()
-		
-		# Convert policy logits to legal move probabilities
+	
 		policy_dict = br.board_to_legal_policy_hash(board, policy_logits.cpu())
 	
-	# Create child nodes for each legal move
+	# Creating the child of that node and putting the model's output into it
 	for move_str in policy_dict.keys():
 		move = chess.Move.from_uci(move_str)
-		
-		# Create new board state
 		new_board = board.copy()
 		new_board.push(move)
 		new_state = new_board.fen()
@@ -292,33 +143,6 @@ def expand_node(node, model, device, game_history=None, add_noise=False):
 		node.add_child(child)
 	
 	node.is_expanded = True
-	return node, value
-
-def simulate(node, model, device, game_history=None):
-	"""
-	Get value from neural network
-	"""
-	if node.is_terminal():
-		board = chess.Board(node.state)
-		if board.is_checkmate():
-			return -1.0
-		else:
-			# Draw
-			return 0.0
-	
-	# Get value from neural network
-	with torch.no_grad():
-		if game_history is None:
-			game_history = []
-		
-		board = chess.Board(node.state)
-		leaf_history = build_leaf_history(node, game_history)
-		input_tensor = br.board_to_full_alphazero_input(board, leaf_history)
-		input_tensor = input_tensor.unsqueeze(0).float().to(device)
-		
-		_, value = model(input_tensor)
-		value = value.squeeze(0).item()
-	
 	return value
 
 def backpropagate(node, value):
@@ -358,7 +182,7 @@ def mcts_search(root, model, num_simulations, device, game_history=None, add_roo
 	"""
 	# Expand root if needed (for fresh roots or reused roots with no children)
 	if not root.is_expanded and not root.is_terminal():
-		_, _ = expand_node(root, model, device, game_history, add_noise=False)  # Expand without noise first
+		_ = expand_node(root, model, device, game_history, add_noise=False)  # Expand without noise first
 	
 	# Apply fresh Dirichlet noise to root every move (AlphaZero paper)
 	# This applies to both fresh roots and reused subtree roots
@@ -369,7 +193,7 @@ def mcts_search(root, model, num_simulations, device, game_history=None, add_roo
 			policy_dict[child.action] = child.P
 		
 		# Apply fresh Dirichlet noise
-		noisy_policy = add_dirichlet_noise(policy_dict, alpha=0.3, noise_weight=0.25)
+		noisy_policy = add_dirichlet_noise(policy_dict)
 		
 		# Update children's priors with fresh noisy values
 		for child in root.children:
@@ -381,13 +205,16 @@ def mcts_search(root, model, num_simulations, device, game_history=None, add_roo
 		# Selection: traverse tree to leaf
 		leaf = select_node(root, c_puct)
 		
-		# Expansion and Simulation
+		# Expansion and evaluation
 		if not leaf.is_terminal():
-			# No noise needed - already applied to root before simulations
-			expanded_node, value = expand_node(leaf, model, device, game_history, add_noise=False)
+			value = expand_node(leaf, model, device, game_history)
 		else:
-			# Terminal node
-			value = simulate(leaf, model, device, game_history)
+			# Terminal node - evaluate based on game outcome
+			board = chess.Board(leaf.state)
+			if board.is_checkmate():
+				value = -1.0
+			else:
+				value = 0.0
 		
 		# Backpropagation
 		backpropagate(leaf, value)
@@ -461,10 +288,6 @@ def select_move(root, temperature=1.0):
 			selected_child = child
 			break
 	
-	# Check if root has terminal children and log analysis
-	if has_terminal_children(root):
-		log_terminal_analysis(root, selected_move, c_puct=2.0)
-	
 	return selected_move, selected_child
 
 def promote_child_to_root(child_node):
@@ -484,7 +307,8 @@ def promote_child_to_root(child_node):
 def run_game(model, num_simulations, device, temperature=1.0, c_puct=2.0, current_game=None, total_games=None, process_id=None):
 	"""
 	Play a full game using MCTS with AlphaZero parameters, collecting training data
-	Returns list of (board_state, history_fens, move_probabilities, game_outcome) tuples
+	Returns tuple of (training_data, ending_reason) where training_data is list of 
+	(board_state, history_fens, move_probabilities, game_outcome) tuples
 	
 	Args:
 		model: Neural network model
@@ -568,40 +392,39 @@ def run_game(model, num_simulations, device, temperature=1.0, c_puct=2.0, curren
 		
 		move_count += 1
 	
-	# Determine game outcome and store ending reason globally for stats
-	global last_game_ending_reason
+	# Determine game outcome and ending reason
 	if board.is_checkmate():
 		# Winner gets +1, loser gets -1
 		# board.turn indicates who is checkmated (whose turn it is when checkmate occurs)
 		game_outcome = -1 if board.turn else 1  # If White's turn -> White checkmated -> Black wins (-1), vice versa
 		winner = 'Black' if game_outcome == -1 else 'White'
-		last_game_ending_reason = f"{winner} wins by checkmate"
-		print(f"Game over: {last_game_ending_reason}")
+		ending_reason = f"{winner} wins by checkmate"
+		print(f"Game over: {ending_reason}")
 	elif board.is_stalemate():
 		game_outcome = 0  # Draw
-		last_game_ending_reason = "Draw by stalemate"
-		print(f"Game over: {last_game_ending_reason}")
+		ending_reason = "Draw by stalemate"
+		print(f"Game over: {ending_reason}")
 	elif board.is_insufficient_material():
 		game_outcome = 0  # Draw
-		last_game_ending_reason = "Draw by insufficient material"
-		print(f"Game over: {last_game_ending_reason}")
+		ending_reason = "Draw by insufficient material"
+		print(f"Game over: {ending_reason}")
 	elif board.is_seventyfive_moves():
 		game_outcome = 0  # Draw
-		last_game_ending_reason = "Draw by 75-move rule"
-		print(f"Game over: {last_game_ending_reason}")
+		ending_reason = "Draw by 75-move rule"
+		print(f"Game over: {ending_reason}")
 	elif board.is_fivefold_repetition():
 		game_outcome = 0  # Draw
-		last_game_ending_reason = "Draw by fivefold repetition"
-		print(f"Game over: {last_game_ending_reason}")
+		ending_reason = "Draw by fivefold repetition"
+		print(f"Game over: {ending_reason}")
 	elif move_count >= 800:
 		game_outcome = 0  # Early stopping - treat as draw
-		last_game_ending_reason = "Draw by 800-ply limit"
-		print(f"Game over: {last_game_ending_reason}")
+		ending_reason = "Draw by 800-ply limit"
+		print(f"Game over: {ending_reason}")
 	else:
 		# This should not happen if game loop only continues while conditions are met
 		game_outcome = 0  # Fallback draw
-		last_game_ending_reason = "Draw by unexpected end condition"
-		print(f"Game over: {last_game_ending_reason}")
+		ending_reason = "Draw by unexpected end condition"
+		print(f"Game over: {ending_reason}")
 	
 	# Convert training data to final format with game outcomes
 	final_training_data = []
@@ -619,12 +442,8 @@ def run_game(model, num_simulations, device, temperature=1.0, c_puct=2.0, curren
 	print(f"Game completed in {move_count} moves")
 	print(f"Generated {len(final_training_data)} training examples")
 	
-	return final_training_data
+	return final_training_data, ending_reason
 
-def get_last_game_ending_reason():
-	"""Return the ending reason of the last completed game"""
-	global last_game_ending_reason
-	return last_game_ending_reason
 
 def get_best_move(model, board_fen, num_simulations, device, game_history=None, temperature=0.0, c_puct=2.0):
 	"""
@@ -669,9 +488,5 @@ def get_best_move(model, board_fen, num_simulations, device, game_history=None, 
 	else:
 		# Sample from distribution
 		best_move, _ = select_move(root, temperature)
-	
-	# Check if root has terminal children and log analysis
-	if has_terminal_children(root):
-		log_terminal_analysis(root, best_move, c_puct)
 	
 	return best_move, move_probs
