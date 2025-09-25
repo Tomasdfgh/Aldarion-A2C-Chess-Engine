@@ -446,8 +446,8 @@ def run_game(model, num_simulations, device, temperature=1.0, c_puct=2.0, curren
 
 '''
 ============================================================
-This Function is the main game loop meant only for selfplay
--- ONlY SELFPLAY BECAUSE BOTH TEAMS SHARE THE SAME TREE --
+		These functions are meant for evaluations
+-- EVALUATIONS BECAUSE EACH TEAM HAS THEIR OWN GAME TREE --
 ============================================================
 '''
 
