@@ -18,9 +18,7 @@ from parallel_utils import run_parallel_task_execution
 from parallel_workers import evaluation_worker_process
 
 
-def evaluate_models(old_model_path: str, new_model_path: str, 
-                           num_games: int, num_simulations: int,
-                           cpu_utilization: float = 0.8):
+def evaluate_models(old_model_path, new_model_path, num_games, num_simulations, cpu_utilization = 0.9):
     """
     Evaluate two models against each other using unified parallel processing
     """

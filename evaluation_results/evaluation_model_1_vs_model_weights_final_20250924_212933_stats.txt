@@ -1,0 +1,201 @@
+============================================================
+MODEL EVALUATION RESULTS
+============================================================
+
+Old model: model_1.pth
+New model: model_weights_final.pth
+Timestamp: 2025-09-24T21:29:33.617164
+
+Games played: 56
+Simulations per move: N/A
+Execution time: 2190.53 seconds (36.5 minutes)
+
+============================================================
+GAME OUTCOMES
+============================================================
+
+New model wins: 18 (32.1%)
+Old model wins: 21 (37.5%)
+Draws: 17 (30.4%)
+Decisive games: 39/56 (69.6%)
+
+============================================================
+EVALUATION METRICS
+============================================================
+
+Score-based rate: 47.3% (wins + 0.5×draws) ← PRIMARY METRIC
+Traditional win rate: 46.2% (wins among decisive games)
+New model score: 26.5/56 points
+
+============================================================
+PROCESS STATISTICS
+============================================================
+
+Process 0: cuda:0
+  Games completed: 2
+  New model wins: 0
+  Old model wins: 1
+  Draws: 1
+
+Process 1: cuda:0
+  Games completed: 2
+  New model wins: 1
+  Old model wins: 1
+  Draws: 0
+
+Process 2: cuda:0
+  Games completed: 2
+  New model wins: 0
+  Old model wins: 0
+  Draws: 2
+
+Process 3: cuda:0
+  Games completed: 2
+  New model wins: 0
+  Old model wins: 2
+  Draws: 0
+
+Process 4: cuda:0
+  Games completed: 2
+  New model wins: 1
+  Old model wins: 1
+  Draws: 0
+
+Process 5: cuda:0
+  Games completed: 2
+  New model wins: 1
+  Old model wins: 1
+  Draws: 0
+
+Process 6: cuda:0
+  Games completed: 2
+  New model wins: 2
+  Old model wins: 0
+  Draws: 0
+
+Process 7: cuda:0
+  Games completed: 2
+  New model wins: 1
+  Old model wins: 1
+  Draws: 0
+
+Process 8: cuda:0
+  Games completed: 2
+  New model wins: 1
+  Old model wins: 1
+  Draws: 0
+
+Process 9: cuda:0
+  Games completed: 2
+  New model wins: 1
+  Old model wins: 0
+  Draws: 1
+
+Process 10: cuda:0
+  Games completed: 2
+  New model wins: 0
+  Old model wins: 1
+  Draws: 1
+
+Process 11: cuda:0
+  Games completed: 2
+  New model wins: 2
+  Old model wins: 0
+  Draws: 0
+
+Process 12: cuda:0
+  Games completed: 2
+  New model wins: 1
+  Old model wins: 1
+  Draws: 0
+
+Process 13: cuda:0
+  Games completed: 2
+  New model wins: 0
+  Old model wins: 1
+  Draws: 1
+
+Process 14: cuda:1
+  Games completed: 2
+  New model wins: 0
+  Old model wins: 1
+  Draws: 1
+
+Process 15: cuda:1
+  Games completed: 2
+  New model wins: 1
+  Old model wins: 0
+  Draws: 1
+
+Process 16: cuda:1
+  Games completed: 2
+  New model wins: 0
+  Old model wins: 0
+  Draws: 2
+
+Process 17: cuda:1
+  Games completed: 2
+  New model wins: 1
+  Old model wins: 1
+  Draws: 0
+
+Process 18: cuda:1
+  Games completed: 2
+  New model wins: 0
+  Old model wins: 1
+  Draws: 1
+
+Process 19: cuda:1
+  Games completed: 2
+  New model wins: 0
+  Old model wins: 1
+  Draws: 1
+
+Process 20: cuda:1
+  Games completed: 2
+  New model wins: 2
+  Old model wins: 0
+  Draws: 0
+
+Process 21: cuda:1
+  Games completed: 2
+  New model wins: 0
+  Old model wins: 2
+  Draws: 0
+
+Process 22: cuda:1
+  Games completed: 2
+  New model wins: 0
+  Old model wins: 1
+  Draws: 1
+
+Process 23: cuda:1
+  Games completed: 2
+  New model wins: 0
+  Old model wins: 1
+  Draws: 1
+
+Process 24: cuda:1
+  Games completed: 2
+  New model wins: 1
+  Old model wins: 1
+  Draws: 0
+
+Process 25: cuda:1
+  Games completed: 2
+  New model wins: 0
+  Old model wins: 1
+  Draws: 1
+
+Process 26: cuda:1
+  Games completed: 2
+  New model wins: 2
+  Old model wins: 0
+  Draws: 0
+
+Process 27: cuda:1
+  Games completed: 2
+  New model wins: 0
+  Old model wins: 0
+  Draws: 2
+
