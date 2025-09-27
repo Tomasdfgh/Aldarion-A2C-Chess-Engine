@@ -1,0 +1,175 @@
+Command used:
+  selfplay_generate_data.py --total_games 224 --num_simulations 400
+  Timestamp: 2025-09-25T01:08:33.776283
+  Parameters: games=224, sims=400, temp=1.0, c_puct=2.0, cpu=0.9
+Number of processes: 28
+
+Per-process breakdown:
+Process  0: 8 tasks, 8 games, 1,789 examples (W:5, B:0, D:3)
+             Game ending reasons:
+               White wins by checkmate: 4 (50.0%)
+               Black wins by checkmate: 1 (12.5%)
+               Draw by insufficient material: 3 (37.5%)
+Process  1: 8 tasks, 8 games, 925 examples (W:8, B:0, D:0)
+             Game ending reasons:
+               White wins by checkmate: 1 (12.5%)
+               Black wins by checkmate: 7 (87.5%)
+Process  2: 8 tasks, 8 games, 1,404 examples (W:8, B:0, D:0)
+             Game ending reasons:
+               Black wins by checkmate: 4 (50.0%)
+               White wins by checkmate: 4 (50.0%)
+Process  3: 8 tasks, 8 games, 2,229 examples (W:4, B:0, D:4)
+             Game ending reasons:
+               Black wins by checkmate: 2 (25.0%)
+               Draw by insufficient material: 3 (37.5%)
+               Draw by 75-move rule: 1 (12.5%)
+               White wins by checkmate: 2 (25.0%)
+Process  4: 8 tasks, 8 games, 2,072 examples (W:5, B:0, D:3)
+             Game ending reasons:
+               Black wins by checkmate: 4 (50.0%)
+               Draw by insufficient material: 3 (37.5%)
+               White wins by checkmate: 1 (12.5%)
+Process  5: 8 tasks, 8 games, 2,006 examples (W:5, B:0, D:3)
+             Game ending reasons:
+               White wins by checkmate: 5 (62.5%)
+               Draw by 75-move rule: 1 (12.5%)
+               Draw by insufficient material: 2 (25.0%)
+Process  6: 8 tasks, 8 games, 1,235 examples (W:6, B:0, D:2)
+             Game ending reasons:
+               Draw by insufficient material: 2 (25.0%)
+               White wins by checkmate: 3 (37.5%)
+               Black wins by checkmate: 3 (37.5%)
+Process  7: 8 tasks, 8 games, 1,720 examples (W:5, B:0, D:3)
+             Game ending reasons:
+               White wins by checkmate: 3 (37.5%)
+               Draw by insufficient material: 2 (25.0%)
+               Black wins by checkmate: 2 (25.0%)
+               Draw by 75-move rule: 1 (12.5%)
+Process  8: 8 tasks, 8 games, 1,720 examples (W:5, B:0, D:3)
+             Game ending reasons:
+               White wins by checkmate: 2 (25.0%)
+               Draw by insufficient material: 3 (37.5%)
+               Black wins by checkmate: 3 (37.5%)
+Process  9: 8 tasks, 8 games, 1,254 examples (W:5, B:0, D:3)
+             Game ending reasons:
+               Black wins by checkmate: 4 (50.0%)
+               Draw by insufficient material: 3 (37.5%)
+               White wins by checkmate: 1 (12.5%)
+Process 10: 8 tasks, 8 games, 2,225 examples (W:4, B:0, D:4)
+             Game ending reasons:
+               White wins by checkmate: 3 (37.5%)
+               Black wins by checkmate: 1 (12.5%)
+               Draw by insufficient material: 3 (37.5%)
+               Draw by 75-move rule: 1 (12.5%)
+Process 11: 8 tasks, 8 games, 1,523 examples (W:5, B:0, D:3)
+             Game ending reasons:
+               White wins by checkmate: 2 (25.0%)
+               Draw by insufficient material: 3 (37.5%)
+               Black wins by checkmate: 3 (37.5%)
+Process 12: 8 tasks, 8 games, 1,055 examples (W:7, B:0, D:1)
+             Game ending reasons:
+               White wins by checkmate: 6 (75.0%)
+               Black wins by checkmate: 1 (12.5%)
+               Draw by insufficient material: 1 (12.5%)
+Process 13: 8 tasks, 8 games, 807 examples (W:7, B:0, D:1)
+             Game ending reasons:
+               White wins by checkmate: 5 (62.5%)
+               Draw by insufficient material: 1 (12.5%)
+               Black wins by checkmate: 2 (25.0%)
+Process 14: 8 tasks, 8 games, 2,471 examples (W:3, B:0, D:5)
+             Game ending reasons:
+               Draw by insufficient material: 4 (50.0%)
+               Black wins by checkmate: 2 (25.0%)
+               White wins by checkmate: 1 (12.5%)
+               Draw by 75-move rule: 1 (12.5%)
+Process 15: 8 tasks, 8 games, 1,736 examples (W:5, B:0, D:3)
+             Game ending reasons:
+               Black wins by checkmate: 3 (37.5%)
+               Draw by 75-move rule: 1 (12.5%)
+               Draw by insufficient material: 2 (25.0%)
+               White wins by checkmate: 2 (25.0%)
+Process 16: 8 tasks, 8 games, 1,598 examples (W:5, B:0, D:3)
+             Game ending reasons:
+               White wins by checkmate: 5 (62.5%)
+               Draw by fivefold repetition: 1 (12.5%)
+               Draw by stalemate: 1 (12.5%)
+               Draw by insufficient material: 1 (12.5%)
+Process 17: 8 tasks, 8 games, 1,779 examples (W:6, B:0, D:2)
+             Game ending reasons:
+               White wins by checkmate: 2 (25.0%)
+               Draw by 75-move rule: 1 (12.5%)
+               Draw by insufficient material: 1 (12.5%)
+               Black wins by checkmate: 4 (50.0%)
+Process 18: 8 tasks, 8 games, 1,307 examples (W:8, B:0, D:0)
+             Game ending reasons:
+               Black wins by checkmate: 5 (62.5%)
+               White wins by checkmate: 3 (37.5%)
+Process 19: 8 tasks, 8 games, 1,514 examples (W:5, B:0, D:3)
+             Game ending reasons:
+               Black wins by checkmate: 2 (25.0%)
+               White wins by checkmate: 3 (37.5%)
+               Draw by insufficient material: 3 (37.5%)
+Process 20: 8 tasks, 8 games, 1,714 examples (W:6, B:0, D:2)
+             Game ending reasons:
+               Draw by insufficient material: 2 (25.0%)
+               White wins by checkmate: 2 (25.0%)
+               Black wins by checkmate: 4 (50.0%)
+Process 21: 8 tasks, 8 games, 885 examples (W:8, B:0, D:0)
+             Game ending reasons:
+               White wins by checkmate: 7 (87.5%)
+               Black wins by checkmate: 1 (12.5%)
+Process 22: 8 tasks, 8 games, 1,757 examples (W:6, B:0, D:2)
+             Game ending reasons:
+               Black wins by checkmate: 5 (62.5%)
+               Draw by insufficient material: 2 (25.0%)
+               White wins by checkmate: 1 (12.5%)
+Process 23: 8 tasks, 8 games, 886 examples (W:7, B:0, D:1)
+             Game ending reasons:
+               White wins by checkmate: 3 (37.5%)
+               Black wins by checkmate: 4 (50.0%)
+               Draw by insufficient material: 1 (12.5%)
+Process 24: 8 tasks, 8 games, 1,819 examples (W:6, B:0, D:2)
+             Game ending reasons:
+               White wins by checkmate: 3 (37.5%)
+               Draw by insufficient material: 2 (25.0%)
+               Black wins by checkmate: 3 (37.5%)
+Process 25: 8 tasks, 8 games, 2,221 examples (W:4, B:0, D:4)
+             Game ending reasons:
+               White wins by checkmate: 3 (37.5%)
+               Black wins by checkmate: 1 (12.5%)
+               Draw by insufficient material: 4 (50.0%)
+Process 26: 8 tasks, 8 games, 1,920 examples (W:5, B:0, D:3)
+             Game ending reasons:
+               Black wins by checkmate: 1 (12.5%)
+               Draw by stalemate: 1 (12.5%)
+               Draw by insufficient material: 2 (25.0%)
+               White wins by checkmate: 4 (50.0%)
+Process 27: 8 tasks, 8 games, 1,002 examples (W:8, B:0, D:0)
+             Game ending reasons:
+               White wins by checkmate: 4 (50.0%)
+               Black wins by checkmate: 4 (50.0%)
+
+============================================================
+SUMMARY:
+============================================================
+Tasks completed:      224
+Total games:          224
+Training examples:    44,573
+
+Game outcomes:
+  White wins:         161 (71.9%)
+  Black wins:         0 (0.0%)
+  Draws:              63 (28.1%)
+
+Ratios:
+  Games per task:     1.00
+  Examples per game:  199.0
+  Examples per task:  199.0
+
+Game ending reasons (across all processes):
+  White wins by checkmate: 85 (37.9%)
+  Black wins by checkmate: 76 (33.9%)
+  Draw by insufficient material: 53 (23.7%)
+  Draw by 75-move rule: 7 (3.1%)
+  Draw by stalemate: 2 (0.9%)
+  Draw by fivefold repetition: 1 (0.4%)
