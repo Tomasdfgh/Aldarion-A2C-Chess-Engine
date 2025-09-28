@@ -432,8 +432,8 @@ def run_game(model, num_simulations, device, temperature=1.0, c_puct=2.0, curren
 	final_training_data = []
 	for board_state, history_fens, move_probs in training_data:
 
-		player_who_moved = not chess.Board(board_state).turn
-		if player_who_moved:
+		side_to_move = chess.Board(board_state).turn
+		if side_to_move:
 			outcome = game_outcome
 		else:
 			outcome = -game_outcome
