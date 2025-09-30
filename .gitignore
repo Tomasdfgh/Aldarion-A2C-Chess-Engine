@@ -2,5 +2,7 @@
 *.pth
 training_data/*.pkl
 training_data_stats/*.txt
+validation_data_stats/*.txt
+validation_data/*.pkl
 __pycache__/
 *.pyc
