@@ -3,7 +3,6 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-
 '''
 This script is meant to analyze the board data and convert the board and history
 of the game to convert it to inputs for the model based on Alphazero's implementation.
@@ -46,7 +45,7 @@ if not all 0s. The last 2 planes is to denote the current player's colour (all 1
 
 IMPORTANT: AlphaZero always plays from the current player's perspective. This means the board is 
 always oriented so that the current player's pieces face downward (towards rank 1). When it's Black's 
-turn, the entire board representation is performs a vertical flip so Black's pieces face downward.
+turn, the entire board representation performs a vertical flip so Black's pieces face downward.
 '''
 
 def board_to_array(board, game_history=None):
@@ -83,6 +82,11 @@ def board_to_array(board, game_history=None):
 				row = 7 - row
 			array[piece_idx + 6][row][col] = 1
 
+
+	#Remember that these last 2 planes are not used in the actual game rules to determine when a draw has arrived
+	#Like when they are both filled wiht 1s, then yes technically the game is over, but it is only an indicator
+	#for the model to know that a draw is approaching so if it is in a winning position, it should avoid a draw.
+	#All game terminations are determined by the chess framework and the board fen string.
 	if game_history:
 		position_key = ' '.join(board_obj.fen().split()[:4])
 		repetition_count = sum(1 for hist_pos in game_history if ' '.join(hist_pos.fen().split()[:4]) == position_key) # <-- Counts how many times the current board position has occured in the game history.

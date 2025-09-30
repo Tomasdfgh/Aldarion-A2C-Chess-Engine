@@ -324,10 +324,10 @@ def select_move(root, temperature=1.0):
 	return selected_move, selected_child
 
 '''
-============================================================
-This Function is the main game loop meant only for selfplay
--- ONlY SELFPLAY BECAUSE BOTH TEAMS SHARE THE SAME TREE --
-============================================================
+========================================================================================================================
+								This Function is the main game loop meant only for selfplay
+								-- ONlY SELFPLAY BECAUSE BOTH TEAMS SHARE THE SAME TREE --
+========================================================================================================================
 '''
 
 def run_game(model, num_simulations, device, temperature=1.0, c_puct=2.0, current_game=None, total_games=None, process_id=None):
@@ -445,10 +445,10 @@ def run_game(model, num_simulations, device, temperature=1.0, c_puct=2.0, curren
 	return final_training_data, ending_reason
 
 '''
-============================================================
-		These functions are meant for evaluations
--- EVALUATIONS BECAUSE EACH TEAM HAS THEIR OWN GAME TREE --
-============================================================
+========================================================================================================================
+									These functions are meant for evaluations
+							-- EVALUATIONS BECAUSE EACH TEAM HAS THEIR OWN GAME TREE --
+========================================================================================================================
 '''
 
 def return_move_and_child(model, board_fen, num_simulations, device, game_history=None, existing_tree=None, temperature=0.0, c_puct=2.0):
@@ -463,6 +463,9 @@ def return_move_and_child(model, board_fen, num_simulations, device, game_histor
 	else:
 		root = None
 		
+		#This if statement here is only for evaluation games because of the two unique trees. once a move has been made on the other tree
+		#So once a move has been made by the other team, this team will then scan its children to see which of its children are the current
+		#child now, then that child will become the new root
 		if existing_tree is not None:
 			for child in existing_tree.children:
 				if child.state == board_fen:
