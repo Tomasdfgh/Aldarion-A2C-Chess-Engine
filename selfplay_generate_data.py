@@ -12,13 +12,8 @@ from parallel_utils import run_parallel_task_execution
 from parallel_workers import selfplay_worker_process
 
 
-def generate_selfplay_data(total_games: int, num_simulations: int, 
-                          temperature: float, model_path: str,
-                          c_puct: float = 2.0,
-                          cpu_utilization: float = 0.90,
-                          max_processes_per_gpu: int = None,
-                          output_dir: str = None,
-                          command_info = None):
+def generate_selfplay_data(total_games, num_simulations, temperature, model_path,c_puct = 2.0, cpu_utilization = 0.90,
+                          max_processes_per_gpu= None, output_dir = None, command_info = None):
     """
     Generate self-play training data using parallel processing
     """
