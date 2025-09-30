@@ -264,7 +264,8 @@ def validate_model(model, dataloader, device):
         'avg_total_loss': total_loss / num_batches,
         'avg_policy_loss': total_policy_loss / num_batches,
         'avg_value_loss': total_value_loss / num_batches,
-        #----------------All Metrics Below are only experimental------------------#
+        
+        #----------------All Metrics Below are only experimental so it doesnt impact grad backprop------------------#
         'sign_accuracy': total_sign_accuracy / num_batches,
         'sign_accuracy_decisive': total_sign_accuracy_decisive / total_decisive_samples if total_decisive_samples > 0 else 0,
         'draw_ratio': draw_ratio,
@@ -292,6 +293,7 @@ def create_alphazero_lr_scheduler(optimizer, total_epochs):
     return optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
 
 def plot_training_metrics(train_metrics_history, val_metrics_history, save_path=None):
+
     epochs = range(1, len(train_metrics_history) + 1)
     
     _, axes = plt.subplots(1, 3, figsize=(15, 5))
@@ -341,28 +343,17 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     
-    parser.add_argument('--data', type=str, nargs='+', required=True,
-                        help='Path(s) to training data pickle file(s)')
-    parser.add_argument('--epochs', type=int, default=10,
-                        help='Number of training epochs (default: 10)')
-    parser.add_argument('--batch_size', type=int, default=32,
-                        help='Batch size for training (default: 32)')
-    parser.add_argument('--lr', type=float, default=0.2,
-                        help='Learning rate (default: 0.2 for SGD, 0.001 for Adam)')
-    parser.add_argument('--weight_decay', type=float, default=1e-4,
-                        help='L2 regularization weight decay (default: 1e-4)')
-    parser.add_argument('--optimizer', type=str, default='sgd', choices=['sgd', 'adam'],
-                        help='Optimizer type: sgd (AlphaZero paper) or adam (default: sgd)')
-    parser.add_argument('--momentum', type=float, default=0.9,
-                        help='SGD momentum (default: 0.9, AlphaZero paper value)')
-    parser.add_argument('--lr_schedule', type=str, default='alphazero', choices=['alphazero', 'step', 'none'],
-                        help='Learning rate schedule: alphazero, step, or none (default: alphazero)')
-    parser.add_argument('--validation_data', type=str, nargs='+', default=None,
-                        help='Path(s) to validation data pickle file(s) (optional)')
-    parser.add_argument('--model_path', type=str, default='model_weights/model_weights.pth',
-                        help='Path to initial model weights (default: model_weights/model_weights.pth)')
-    parser.add_argument('--output', type=str, default=None,
-                        help='Output directory for training plots (default: training_results/)')
+    parser.add_argument('--data', type=str, nargs='+', required=True)
+    parser.add_argument('--epochs', type=int, default=10)
+    parser.add_argument('--batch_size', type=int, default=1024)
+    parser.add_argument('--lr', type=float, default=0.2)
+    parser.add_argument('--weight_decay', type=float, default=1e-4)
+    parser.add_argument('--optimizer', type=str, default='sgd', choices=['sgd', 'adam'])
+    parser.add_argument('--momentum', type=float, default=0.9)
+    parser.add_argument('--lr_schedule', type=str, default='alphazero', choices=['alphazero', 'step', 'none'])
+    parser.add_argument('--validation_data', type=str, nargs='+', default=None)
+    parser.add_argument('--model_path', type=str, default='model_weights/model_weights.pth')
+    parser.add_argument('--output', type=str, default=None)
     
     args = parser.parse_args()
     
@@ -383,14 +374,12 @@ def main():
     print(f"Validation: {'Separate dataset' if args.validation_data else 'Disabled'}")
     
     # Create datasets
-    full_dataset = ChessTrainingDataset(args.data)
+    train_dataset = ChessTrainingDataset(args.data)
     
     if args.validation_data:
-        train_dataset = full_dataset
         val_dataset = ChessTrainingDataset(args.validation_data)
         print(f"Train set: {len(train_dataset)}, Validation set: {len(val_dataset)}")
     else:
-        train_dataset = full_dataset
         val_dataset = None
         print(f"Train set: {len(train_dataset)}, No validation data")
     
@@ -423,11 +412,7 @@ def main():
         print(f"\nModel weights from {args.model_path}")
         try:
             state_dict = torch.load(args.model_path, map_location=device, weights_only=True)
-            # Handle potential DataParallel weights (remove 'module.' prefix if present)
-            if any(key.startswith('module.') for key in state_dict.keys()):
-                state_dict = {k.replace('module.', ''): v for k, v in state_dict.items()}
-            
-            model.load_state_dict(state_dict, strict=False)
+            model.load_state_dict(state_dict)
             print("Pretrained weights loaded successfully")
         except Exception as e:
             print(f"Could not load pretrained weights: {e}, so starting with random weights")

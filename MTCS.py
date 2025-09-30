@@ -451,8 +451,7 @@ def run_game(model, num_simulations, device, temperature=1.0, c_puct=2.0, curren
 ============================================================
 '''
 
-def return_move_and_child(model, board_fen, num_simulations, device,
-                         game_history=None, existing_tree=None, temperature=0.0, c_puct=2.0):
+def return_move_and_child(model, board_fen, num_simulations, device, game_history=None, existing_tree=None, temperature=0.0, c_puct=2.0):
 	"""
 	Get the best move for a given position using MCTS with optional tree reuse
 	"""
@@ -501,8 +500,7 @@ def return_move_and_child(model, board_fen, num_simulations, device,
 	return best_move, selected_child
 
 
-def play_single_evaluation_game(white_model, black_model, num_simulations, device, game_id, white_is_new,
-                               old_model_path, new_model_path, process_id, game_num, total_games):
+def play_single_evaluation_game(white_model, black_model, num_simulations, device, game_id, white_is_new, old_model_path, new_model_path, process_id, game_num, total_games):
 	"""
 	Play a single competitive game between two models with private MCTS trees
 	"""

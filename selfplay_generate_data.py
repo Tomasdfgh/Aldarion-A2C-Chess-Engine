@@ -56,7 +56,7 @@ def generate_selfplay_data(total_games, num_simulations, temperature, model_path
     return saved_file
 
 
-def save_training_data(training_data, process_stats, output_dir: str = None, command_info = None):
+def save_training_data(training_data, process_stats, output_dir = None, command_info = None):
     """
     Save training data and process statistics
     """
@@ -177,22 +177,14 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     
-    parser.add_argument('--total_games', type=int, default=100,
-                        help='Total number of games to generate (default: 100)')
-    parser.add_argument('--num_simulations', type=int, default=100,
-                        help='MCTS simulations per move (default: 100)')
-    parser.add_argument('--temperature', type=float, default=1.0,
-                        help='Temperature for move selection (default: 1.0)')
-    parser.add_argument('--c_puct', type=float, default=2.0,
-                        help='MCTS exploration parameter (default: 2.0)')
-    parser.add_argument('--model_path', type=str, default='model_weights/model_weights.pth',
-                        help='Path to model weights (default: model_weights/model_weights.pth)')
-    parser.add_argument('--cpu_utilization', type=float, default=0.90,
-                        help='Target CPU utilization 0.0-1.0 (default: 0.90)')
-    parser.add_argument('--max_processes_per_gpu', type=int, default=None,
-                        help='Manual override for max processes per GPU (auto-detect if not specified)')
-    parser.add_argument('--output', type=str, default=None,
-                        help='Output directory for training data (default: training_data/)')
+    parser.add_argument('--total_games', type=int, default=100)
+    parser.add_argument('--num_simulations', type=int, default=100)
+    parser.add_argument('--temperature', type=float, default=1.0)
+    parser.add_argument('--c_puct', type=float, default=2.0)
+    parser.add_argument('--model_path', type=str, default='model_weights/model_weights.pth')
+    parser.add_argument('--cpu_utilization', type=float, default=0.90)
+    parser.add_argument('--max_processes_per_gpu', type=int, default=None)
+    parser.add_argument('--output', type=str, default=None)
     
     args = parser.parse_args()
 

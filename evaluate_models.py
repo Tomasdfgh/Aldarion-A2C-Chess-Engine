@@ -98,8 +98,7 @@ def evaluate_models(old_model_path, new_model_path, num_games, num_simulations, 
     }
 
 
-def save_evaluation_results(results, old_model_path: str, new_model_path: str, 
-                          output_dir: str = None):
+def save_evaluation_results(results, old_model_path, new_model_path, output_dir = None):
     """
     Save evaluation results and statistics
     """
@@ -168,21 +167,13 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     
-    parser.add_argument('--old_model', type=str, required=True,
-                        help='Path to the current best model')
-    parser.add_argument('--new_model', type=str, required=True,
-                        help='Path to the newly trained model to evaluate')
-    parser.add_argument('--num_games', type=int, default=50,
-                        help='Number of games to play (default: 50)')
-    parser.add_argument('--num_simulations', type=int, default=200,
-                        help='MCTS simulations per move (default: 200)')
-    parser.add_argument('--win_threshold', type=float, default=55.0,
-                        help='Win rate threshold for accepting new model (default: 55.0%)')
-    parser.add_argument('--cpu_utilization', type=float, default=0.9,
-                        help='CPU utilization for parallel processing (default: 0.9)')
-    parser.add_argument('--output', type=str, default=None,
-                        help='Output directory for evaluation results (default: evaluation_results/)')
-    
+    parser.add_argument('--old_model', type=str, required=True)
+    parser.add_argument('--new_model', type=str, required=True)
+    parser.add_argument('--num_games', type=int, default=50)
+    parser.add_argument('--num_simulations', type=int, default=200)
+    parser.add_argument('--win_threshold', type=float, default=55.0)
+    parser.add_argument('--cpu_utilization', type=float, default=0.9)
+    parser.add_argument('--output', type=str, default=None)
     args = parser.parse_args()
 
     os.makedirs("evaluation_results", exist_ok=True)

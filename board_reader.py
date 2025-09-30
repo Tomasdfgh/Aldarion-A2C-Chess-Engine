@@ -46,7 +46,7 @@ if not all 0s. The last 2 planes is to denote the current player's colour (all 1
 
 IMPORTANT: AlphaZero always plays from the current player's perspective. This means the board is 
 always oriented so that the current player's pieces face downward (towards rank 1). When it's Black's 
-turn, the entire board representation is flipped 180 degrees so Black's pieces face downward.
+turn, the entire board representation is performs a vertical flip so Black's pieces face downward.
 '''
 
 def board_to_array(board, game_history=None):
@@ -85,15 +85,13 @@ def board_to_array(board, game_history=None):
 
 	if game_history:
 		position_key = ' '.join(board_obj.fen().split()[:4])
-		repetition_count = sum(1 for hist_pos in game_history 
-		                      if ' '.join(hist_pos.fen().split()[:4]) == position_key)
+		repetition_count = sum(1 for hist_pos in game_history if ' '.join(hist_pos.fen().split()[:4]) == position_key) # <-- Counts how many times the current board position has occured in the game history.
 		array[12] = np.full((8, 8), min(repetition_count, 3) / 3.0)
 		
-		halfmove_clock = board_obj.halfmove_clock
-		array[13] = np.full((8, 8), min(halfmove_clock, 50) / 50.0)
 	else:
-		array[12] = np.full((8, 8), 1/3.0)
-		array[13] = np.full((8, 8), board_obj.halfmove_clock / 50.0)
+		array[12] = np.full((8, 8), 1/3) #<-- if no game history, i.e first move, then obviously it will just be 1/3
+	
+	array[13] = np.full((8, 8), min(board_obj.halfmove_clock, 50) / 50.0)
 	
 	return torch.tensor(array)
 
@@ -140,7 +138,7 @@ def board_to_full_alphazero_input(current_board, game_history=None):
 	"""
 	Takes in the current board and game history. grab the last 7 time steps
 	then it should convert that into an input vector that is 8 by 8 (chess board) by 119 planes.
-	study up on why alphazero has 119 planes for its input for this to make sense.
+	Why alphazero has 119 planes for its input is explained in that blurp at the start.
 	"""
 	if isinstance(current_board, str):
 		current_board = chess.Board(current_board)
@@ -221,7 +219,7 @@ Plane 72: Promote to Rook, Capture Right
 
 One more important note is that alphazero policy distribution plays from the current
 player prespective. So if you the player is black, the board will have to be flipped
-180 degrees, then a move can be selected.
+along the verticle axis before a move can be selected.
 '''
 
 def create_legal_move_mask(board):
@@ -272,7 +270,7 @@ def board_to_legal_policy_hash(board, policy_logits):
 
 def uci_to_policy_index(uci_move, current_player_turn=chess.WHITE):
 	"""
-	This is one tricky motherfucker, but this function is based on the implementation of the
+	This function is based on the implementation of the
 	actual alphazero paper. This converts the uci chess string like 'g1h3' which
 	represents a move from g1 to h3 and convert it to the row, col, and plane index in the 8 by 8 by 73 policy tensor.
 	If confused, look at how alphazero encodes their move. It is very specific and can be changed based on
@@ -329,8 +327,6 @@ def uci_to_policy_index(uci_move, current_player_turn=chess.WHITE):
 			direction_index = 1  # Diagonal-left
 		elif d_col == 1:
 			direction_index = 2  # Diagonal-right
-		else:
-			raise ValueError(f"Invalid underpromotion move: {uci_move}")
 		
 		plane = 64 + direction_index * 3 + piece_index
 		return from_row, from_col, plane

@@ -41,8 +41,7 @@ def detect_available_gpus():
     return gpu_info
 
 
-def calculate_optimal_processes_per_gpu(gpu_info, cpu_utilization: float = 0.90, 
-                                      max_processes_per_gpu: int = None):
+def calculate_optimal_processes_per_gpu(gpu_info, cpu_utilization = 0.90, max_processes_per_gpu = None):
     """
     Calculate optimal number of processes per GPU based on hardware
     """
@@ -71,7 +70,7 @@ def calculate_optimal_processes_per_gpu(gpu_info, cpu_utilization: float = 0.90,
     return optimal_processes
 
 
-def calculate_workload_distribution(total_tasks: int, gpu_info, processes_per_gpu: int):
+def calculate_workload_distribution(total_tasks, gpu_info, processes_per_gpu):
     """
     Distribute tasks across GPUs and processes with balanced GPU utilization
     """
@@ -93,7 +92,7 @@ def calculate_workload_distribution(total_tasks: int, gpu_info, processes_per_gp
     return distribution
 
 
-def cleanup_gpu_memory(device: torch.device, process_id: int = None, models = None):
+def cleanup_gpu_memory(device, process_id = None, models = None):
     """
     Perform explicit GPU memory cleanup
     """
@@ -133,9 +132,7 @@ def final_gpu_cleanup():
     except Exception as cleanup_error:
         print(f"Warning - Final GPU cleanup error: {cleanup_error}")
 
-
-def create_process_statistics(process_id: int, gpu_device: str, start_time: float, 
-                            tasks_completed: int, tasks_requested: int, **kwargs):
+def create_process_statistics(process_id, gpu_device, start_time, tasks_completed, tasks_requested, **kwargs):
     """
     Create standardized process statistics dictionary
     """
@@ -156,10 +153,7 @@ def create_process_statistics(process_id: int, gpu_device: str, start_time: floa
     return base_stats
 
 
-def run_parallel_task_execution(task_config, 
-                               worker_function,
-                               cpu_utilization: float = 0.90,
-                               max_processes_per_gpu: int = None):
+def run_parallel_task_execution(task_config, worker_function, cpu_utilization= 0.90, max_processes_per_gpu = None):
 
     print('\n')
     print("="*60)
