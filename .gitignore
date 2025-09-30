@@ -1,9 +1,9 @@
 # Large files to ignore
+*.pth
 training_data/*.pkl
 training_data_stats/*.txt
 validation_data_stats/*.txt
 validation_data/*.pkl
-Iteration_*/*.pkl
 __pycache__/
 *.pyc
 Iterations
