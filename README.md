@@ -32,6 +32,13 @@ python -c "import torch; import chess; print('PyTorch version:', torch.__version
 
 ## Example script commands
 
+### Create Baseline Model with Random Weights
+
+```bash
+python -c "import os; import torch; import model as md; os.makedirs('model_weights', exist_ok=True); torch.save(md.ChessNet().state_dict(), 'model_weights/model_weights.pth'); print('Random weights saved to model_weights/model_weights.pth')"
+```
+Run that command to initialize a starting model with random weights. The weight will be saved in the model_weights folder as a .pth file. You can use this file in order to run selfplay to create training data (below).
+
 ### Run a selfplay trial
 
 ```bash
