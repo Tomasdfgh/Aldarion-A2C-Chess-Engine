@@ -7,3 +7,5 @@ validation_data/*.pkl
 __pycache__/
 *.pyc
 Iterations
+training_results/*
+evaluation_results/*
