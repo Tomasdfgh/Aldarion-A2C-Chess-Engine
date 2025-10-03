@@ -373,13 +373,13 @@ def run_game(model, num_simulations, device, temperature=1.0, c_puct=2.0, curren
 			print(f"Reusing MCTS subtree (N={root.N}, children={len(root.children)})")
 		
 		root = mcts_search(root, model, num_simulations, device, game_history, add_root_noise=True, c_puct=c_puct)
-		move_probs = get_move_probabilities(root, temperature=1.0)
+
+		alphazero_temperature = get_alphazero_temperature(board.fullmove_number, base_temperature=temperature)
+		move_probs = get_move_probabilities(root, temperature=alphazero_temperature)
 		history_fens = [b.fen() for b in game_history[-7:]] if len(game_history) >= 7 else [b.fen() for b in game_history[:]]
 		
 		#Each of the training data here is still missing the value, which will be added once the game is over
 		training_data.append((board.fen(), history_fens, move_probs.copy()))
-		
-		alphazero_temperature = get_alphazero_temperature(board.fullmove_number, base_temperature=temperature)
 		selected_move, selected_child = select_move(root, alphazero_temperature)
 		
 		print(f"Selected move: {selected_move} (temp={alphazero_temperature}){game_info} \n")
