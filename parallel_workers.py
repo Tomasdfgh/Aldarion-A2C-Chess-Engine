@@ -9,11 +9,32 @@ and model evaluation using the same underlying infrastructure.
 import os
 import torch
 import time
+import random
+import numpy as np
 
 # Import existing modules
 import MTCS as mt
 import model as md
 from parallel_utils import cleanup_gpu_memory, create_process_statistics
+
+
+def set_worker_seed(process_id, base_seed=42):
+    """
+    Set seeds for reproducibility in worker processes
+    Each process gets a unique seed based on process_id
+    """
+    worker_seed = base_seed + process_id
+    torch.manual_seed(worker_seed)
+    torch.cuda.manual_seed(worker_seed)
+    torch.cuda.manual_seed_all(worker_seed)
+    np.random.seed(worker_seed)
+    random.seed(worker_seed)
+    
+    # For deterministic behavior in PyTorch operations
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    
+    return worker_seed
 
 
 def selfplay_worker_process(gpu_device, num_games, task_config, process_id):
@@ -23,12 +44,16 @@ def selfplay_worker_process(gpu_device, num_games, task_config, process_id):
     start_time = time.time()
     
     try:
+        # Set deterministic seed for this worker process
+        base_seed = task_config.get('seed', 42)
+        worker_seed = set_worker_seed(process_id, base_seed)
+        
         num_simulations = task_config['num_simulations']
         temperature = task_config.get('temperature', 1.0)
         c_puct = task_config.get('c_puct', 2.0)
         model_path = task_config['model_path']
         
-        print(f"Process {process_id}: Starting on {gpu_device} with {num_games} games")
+        print(f"Process {process_id}: Starting on {gpu_device} with {num_games} games (seed: {worker_seed})")
         device = torch.device(gpu_device)
         
         # Load model (each process gets its own copy)
@@ -130,12 +155,16 @@ def evaluation_worker_process(gpu_device: str, num_games: int, task_config,
     start_time = time.time()
     
     try:
+        # Set deterministic seed for this worker process
+        base_seed = task_config.get('seed', 42)
+        worker_seed = set_worker_seed(process_id, base_seed)
+        
         num_simulations = task_config['num_simulations']
         old_model_path = task_config['old_model_path']
         new_model_path = task_config['new_model_path']
         starting_game_id = process_id * num_games
         
-        print(f"Process {process_id}: Starting on {gpu_device} with {num_games} evaluation games")
+        print(f"Process {process_id}: Starting on {gpu_device} with {num_games} evaluation games (seed: {worker_seed})")
         
         device = torch.device(gpu_device)
         old_model = md.ChessNet()

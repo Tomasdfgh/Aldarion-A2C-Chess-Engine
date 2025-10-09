@@ -13,7 +13,7 @@ from parallel_workers import selfplay_worker_process
 
 
 def generate_selfplay_data(total_games, num_simulations, temperature, model_path,c_puct = 2.0, cpu_utilization = 0.90,
-                          max_processes_per_gpu= None, output_dir = None, command_info = None):
+                          max_processes_per_gpu= None, output_dir = None, command_info = None, seed = 42):
     """
     Generate self-play training data using parallel processing
     """
@@ -32,7 +32,8 @@ def generate_selfplay_data(total_games, num_simulations, temperature, model_path
         'num_simulations': num_simulations,
         'temperature': temperature,
         'c_puct': c_puct,
-        'model_path': model_path
+        'model_path': model_path,
+        'seed': seed
     }
     
     start_time = time.time()
@@ -185,6 +186,7 @@ def main():
     parser.add_argument('--cpu_utilization', type=float, default=0.90)
     parser.add_argument('--max_processes_per_gpu', type=int, default=None)
     parser.add_argument('--output', type=str, default=None)
+    parser.add_argument('--seed', type=int, default=42)
     
     args = parser.parse_args()
 
@@ -216,7 +218,8 @@ def main():
             cpu_utilization=args.cpu_utilization,
             max_processes_per_gpu=args.max_processes_per_gpu,
             output_dir=args.output,
-            command_info=command_info
+            command_info=command_info,
+            seed=args.seed
         )
         
         if saved_file:

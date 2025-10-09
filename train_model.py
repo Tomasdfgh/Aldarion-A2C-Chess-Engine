@@ -37,10 +37,29 @@ import argparse
 import chess
 from datetime import datetime
 import matplotlib.pyplot as plt
+import random
+import numpy as np
 
 # Import existing modules
 import model as md
 import board_reader as br
+
+
+def set_seed(seed=42):
+    """
+    Set seeds for reproducibility across all random number generators
+    """
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    
+    # For deterministic behavior in PyTorch operations
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    
+    print(f"Set all random seeds to {seed} for reproducible training")
 
 class ChessTrainingDataset(Dataset):
     """
@@ -354,8 +373,14 @@ def main():
     parser.add_argument('--validation_data', type=str, nargs='+', default=None)
     parser.add_argument('--model_path', type=str, default='model_weights/model_weights.pth')
     parser.add_argument('--output', type=str, default=None)
+    parser.add_argument('--old_data', type=str, nargs='+', default=None)
+    parser.add_argument('--ratio', type=float, default=0.0, help='Ratio of old_data to data (0.0-1.0)')
+    parser.add_argument('--seed', type=int, default=42, help='Random seed for reproducibility')
     
     args = parser.parse_args()
+    
+    # Set seed for reproducibility
+    set_seed(args.seed)
     
     # Setup
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -375,6 +400,30 @@ def main():
     
     # Create datasets
     train_dataset = ChessTrainingDataset(args.data)
+
+    # Handle old data sampling if provided
+    if args.old_data and args.ratio > 0:
+        if not (0 <= args.ratio <= 1):
+            raise ValueError(f"Ratio must be between 0 and 1, got {args.ratio}")
+        
+        old_dataset = ChessTrainingDataset(args.old_data)
+        
+        # Calculate sample size from old data
+        main_data_size = len(train_dataset.training_data)
+        old_data_sample_size = int(main_data_size * args.ratio)
+        
+        if old_data_sample_size > 0 and len(old_dataset.training_data) > 0:
+            if old_data_sample_size >= len(old_dataset.training_data):
+                sampled_old_data = old_dataset.training_data
+                print(f"Using all {len(sampled_old_data)} samples from old_data (requested {old_data_sample_size})")
+            else:
+                sampled_old_data = random.sample(old_dataset.training_data, old_data_sample_size)
+                print(f"Sampled {len(sampled_old_data)} samples from {len(old_dataset.training_data)} old_data samples")
+            
+            # Combine with main training data
+            train_dataset.training_data.extend(sampled_old_data)
+            print(f"Total training data: {main_data_size} (main) + {len(sampled_old_data)} (old) = {len(train_dataset.training_data)} samples")
+
     
     if args.validation_data:
         val_dataset = ChessTrainingDataset(args.validation_data)
@@ -447,7 +496,7 @@ def main():
     val_metrics_history = []
     best_val_loss = float('inf')
     patience_counter = 0
-    patience = 3
+    patience = 50
     min_improvement = 0.0025  # 0.25% minimum improvement threshold
 
     print('\n')

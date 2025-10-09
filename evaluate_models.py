@@ -12,13 +12,33 @@ import sys
 import argparse
 import time
 from datetime import datetime
+import torch
+import numpy as np
+import random
 
 # Import unified modules
 from parallel_utils import run_parallel_task_execution
 from parallel_workers import evaluation_worker_process
 
 
-def evaluate_models(old_model_path, new_model_path, num_games, num_simulations, cpu_utilization = 0.9):
+def set_seed(seed=42):
+    """
+    Set seeds for reproducibility across all random number generators
+    """
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    
+    # For deterministic behavior in PyTorch operations
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    
+    print(f"Set all random seeds to {seed} for reproducible evaluation")
+
+
+def evaluate_models(old_model_path, new_model_path, num_games, num_simulations, cpu_utilization = 0.9, seed=42):
     """
     Evaluate two models against each other using unified parallel processing
     """
@@ -36,7 +56,8 @@ def evaluate_models(old_model_path, new_model_path, num_games, num_simulations, 
         'total_tasks': num_games,
         'num_simulations': num_simulations,
         'old_model_path': old_model_path,
-        'new_model_path': new_model_path
+        'new_model_path': new_model_path,
+        'seed': seed
     }
     
     start_time = time.time()
@@ -174,7 +195,11 @@ def main():
     parser.add_argument('--win_threshold', type=float, default=55.0)
     parser.add_argument('--cpu_utilization', type=float, default=0.9)
     parser.add_argument('--output', type=str, default=None)
+    parser.add_argument('--seed', type=int, default=42, help='Random seed for reproducibility')
     args = parser.parse_args()
+
+    # Set seed for reproducibility
+    set_seed(args.seed)
 
     os.makedirs("evaluation_results", exist_ok=True)
     try:
@@ -184,7 +209,8 @@ def main():
             new_model_path=args.new_model,
             num_games=args.num_games,
             num_simulations=args.num_simulations,
-            cpu_utilization=args.cpu_utilization
+            cpu_utilization=args.cpu_utilization,
+            seed=args.seed
         )
         
         save_evaluation_results(results, args.old_model, args.new_model, args.output)
