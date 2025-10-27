@@ -438,7 +438,8 @@ def main():
         shuffle=True,
         num_workers=4,
         pin_memory=True if device.type == 'cuda' else False,
-        collate_fn=collate_fn
+        collate_fn=collate_fn,
+        drop_last=True
     )
     
     val_loader = None
@@ -449,12 +450,21 @@ def main():
             shuffle=False,
             num_workers=4,
             pin_memory=True if device.type == 'cuda' else False,
-            collate_fn=collate_fn
+            collate_fn=collate_fn,
+            drop_last=True
         )
     
     # Initialize model
     model = md.ChessNet()
     model = model.to(device)
+
+    # Set output directory for both model and plots
+    if args.output is None:
+        output_dir = "training_results"
+        model_dir = "model_weights"
+    else:
+        output_dir = args.output
+        model_dir = args.output
     
     # Load pretrained weights if available
     if os.path.exists(args.model_path):
@@ -556,18 +566,17 @@ def main():
                         break
         
         scheduler.step()
-    
-    # Set output directory for both model and plots
-    if args.output is None:
-        output_dir = "training_results"
-        model_dir = "model_weights"
-    else:
-        output_dir = args.output
-        model_dir = args.output
+        
+        # Save model every 5 epochs
+        if epoch % 5 == 0:
+            os.makedirs(model_dir, exist_ok=True)
+            checkpoint_path = os.path.join(model_dir, f"model_weights_lr{args.lr}_ep{epoch}.pth")
+            torch.save(model.state_dict(), checkpoint_path)
+            print(f"Model saved at epoch {epoch}: {checkpoint_path}")
     
     # Save final model
     os.makedirs(model_dir, exist_ok=True)
-    final_path = os.path.join(model_dir, "model_weights_final.pth")
+    final_path = os.path.join(model_dir, f"model_weights_lr{args.lr}_ep{args.epochs}.pth")
     
     torch.save(model.state_dict(), final_path)
     print(f"\nFinal model saved to {final_path}")

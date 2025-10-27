@@ -195,7 +195,7 @@ def main():
     parser.add_argument('--win_threshold', type=float, default=55.0)
     parser.add_argument('--cpu_utilization', type=float, default=0.9)
     parser.add_argument('--output', type=str, default=None)
-    parser.add_argument('--seed', type=int, default=42, help='Random seed for reproducibility')
+    parser.add_argument('--seed', type=int, default=42)
     args = parser.parse_args()
 
     # Set seed for reproducibility
