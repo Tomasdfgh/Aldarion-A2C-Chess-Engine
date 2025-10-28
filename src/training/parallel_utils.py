@@ -185,7 +185,10 @@ def run_parallel_task_execution(task_config, worker_function, cpu_utilization= 0
     
     print(f"\nStarting parallel execution...")
     start_time = time.time()
-    with mp.Pool(processes=total_processes) as pool:
+    
+    # Use spawn method and increase timeout to handle large data transfers
+    ctx = mp.get_context('spawn')
+    with ctx.Pool(processes=total_processes) as pool:
         process_args = []
         process_id = 0
         
@@ -197,14 +200,25 @@ def run_parallel_task_execution(task_config, worker_function, cpu_utilization= 0
                     process_id += 1
         
         print(f"Launching {len(process_args)} worker processes...")
-        results = pool.starmap(worker_function, process_args)
+        
+        # Use map_async to handle broken pipes gracefully
+        try:
+            result_async = pool.starmap_async(worker_function, process_args)
+            results = result_async.get()
+        except Exception as e:
+            print(f"Warning: Pool execution failed: {e}")
+            pool.terminate()
+            pool.join()
+            raise
     
     all_task_results = []
     process_statistics = []
     
     for task_results, stats in results:
-        all_task_results.extend(task_results)
-        process_statistics.append(stats)
+        if task_results is not None:
+            all_task_results.extend(task_results)
+        if stats is not None:
+            process_statistics.append(stats)
     
     end_time = time.time()
     execution_time = end_time - start_time

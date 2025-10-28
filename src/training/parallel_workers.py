@@ -13,9 +13,9 @@ import random
 import numpy as np
 
 # Import existing modules
-import MTCS as mt
-import model as md
-from parallel_utils import cleanup_gpu_memory, create_process_statistics
+from src.agent import mcts as mt
+from src.agent import model as md
+from src.training.parallel_utils import cleanup_gpu_memory, create_process_statistics
 
 
 def set_worker_seed(process_id, base_seed=42):

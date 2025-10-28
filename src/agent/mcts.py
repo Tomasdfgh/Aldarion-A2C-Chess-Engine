@@ -1,5 +1,5 @@
 import chess
-import board_reader as br
+from . import board as br
 import torch
 import numpy as np
 import math

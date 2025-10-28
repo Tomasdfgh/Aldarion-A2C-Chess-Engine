@@ -41,8 +41,8 @@ import random
 import numpy as np
 
 # Import existing modules
-import model as md
-import board_reader as br
+from src.agent import model as md
+from src.agent import board as br
 
 
 def set_seed(seed=42):

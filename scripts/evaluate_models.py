@@ -17,8 +17,8 @@ import numpy as np
 import random
 
 # Import unified modules
-from parallel_utils import run_parallel_task_execution
-from parallel_workers import evaluation_worker_process
+from src.training.parallel_utils import run_parallel_task_execution
+from src.training.parallel_workers import evaluation_worker_process
 
 
 def set_seed(seed=42):

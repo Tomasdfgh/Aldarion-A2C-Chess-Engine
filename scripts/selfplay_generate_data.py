@@ -8,8 +8,8 @@ from datetime import datetime
 import multiprocessing as mp
 
 # Import unified modules
-from parallel_utils import run_parallel_task_execution
-from parallel_workers import selfplay_worker_process
+from src.training.parallel_utils import run_parallel_task_execution
+from src.training.parallel_workers import selfplay_worker_process
 
 
 def generate_selfplay_data(total_games, num_simulations, temperature, model_path,c_puct = 2.0, cpu_utilization = 0.90,
