@@ -1,0 +1,38 @@
+2025-10-28 01:00:02 - src.worker.training_worker - INFO - Starting training worker
+2025-10-28 01:00:02 - src.worker.training_worker - INFO - Training configuration:
+2025-10-28 01:00:02 - src.worker.training_worker - INFO -   Batch size: 512
+2025-10-28 01:00:02 - src.worker.training_worker - INFO -   Dataset size: 100000
+2025-10-28 01:00:02 - src.worker.training_worker - INFO -   Loss weights: [1.0, 0.5]
+2025-10-28 01:00:02 - src.worker.training_worker - INFO -   Load data steps: 100
+2025-10-28 01:00:02 - src.worker.training_worker - INFO - Using device: cuda
+2025-10-28 01:00:02 - src.worker.training_worker - INFO - 🧠 Starting training step #1
+2025-10-28 01:00:02 - src.worker.training_worker - INFO - Loading training data from 4 files
+2025-10-28 01:00:02 - src.worker.training_worker - INFO - Loaded 5,722 training examples
+2025-10-28 01:00:03 - src.lib.model_manager - INFO - Loaded best model from model_weight.pth
+2025-10-28 01:00:14 - src.lib.model_manager - INFO - Saved next-generation model step_000001
+2025-10-28 01:00:14 - src.worker.training_worker - INFO - ✅ Training step #1 complete:
+2025-10-28 01:00:14 - src.worker.training_worker - INFO -    Total loss: 3.4186
+2025-10-28 01:00:14 - src.worker.training_worker - INFO -    Policy loss: 3.2181
+2025-10-28 01:00:14 - src.worker.training_worker - INFO -    Value loss: 0.4011
+2025-10-28 01:00:14 - src.worker.training_worker - INFO -    Training examples: 5,722
+2025-10-28 01:00:14 - src.worker.training_worker - INFO -    Training time: 10.4s
+2025-10-28 01:00:14 - src.worker.training_worker - INFO -    Model saved: model_step_000001
+2025-10-28 01:00:24 - src.lib.model_manager - INFO - Loaded best model from model_weight.pth
+2025-10-28 01:00:34 - src.lib.model_manager - INFO - Saved next-generation model step_000002
+2025-10-28 01:00:34 - src.worker.training_worker - INFO - ✅ Training step #2 complete:
+2025-10-28 01:00:34 - src.worker.training_worker - INFO -    Total loss: 3.4148
+2025-10-28 01:00:34 - src.worker.training_worker - INFO -    Policy loss: 3.2184
+2025-10-28 01:00:34 - src.worker.training_worker - INFO -    Value loss: 0.3928
+2025-10-28 01:00:34 - src.worker.training_worker - INFO -    Training examples: 5,722
+2025-10-28 01:00:34 - src.worker.training_worker - INFO -    Training time: 10.2s
+2025-10-28 01:00:34 - src.worker.training_worker - INFO -    Model saved: model_step_000002
+2025-10-28 01:00:44 - src.lib.model_manager - INFO - Loaded best model from model_weight.pth
+2025-10-28 01:01:01 - src.lib.model_manager - INFO - Saved next-generation model step_000003
+2025-10-28 01:01:01 - src.worker.training_worker - INFO - ✅ Training step #3 complete:
+2025-10-28 01:01:01 - src.worker.training_worker - INFO -    Total loss: 3.4232
+2025-10-28 01:01:01 - src.worker.training_worker - INFO -    Policy loss: 3.2227
+2025-10-28 01:01:01 - src.worker.training_worker - INFO -    Value loss: 0.4010
+2025-10-28 01:01:01 - src.worker.training_worker - INFO -    Training examples: 5,722
+2025-10-28 01:01:01 - src.worker.training_worker - INFO -    Training time: 16.4s
+2025-10-28 01:01:01 - src.worker.training_worker - INFO -    Model saved: model_step_000003
+2025-10-28 01:01:11 - src.lib.model_manager - INFO - Loaded best model from model_weight.pth

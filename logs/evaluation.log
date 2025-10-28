@@ -1,0 +1,8 @@
+2025-10-28 00:54:35 - src.worker.evaluation_worker - INFO - Starting evaluation worker
+2025-10-28 00:54:35 - src.worker.evaluation_worker - INFO - Evaluation configuration:
+2025-10-28 00:54:35 - src.worker.evaluation_worker - INFO -   Games per evaluation: 24
+2025-10-28 00:54:35 - src.worker.evaluation_worker - INFO -   Replace rate threshold: 0.55
+2025-10-28 00:54:35 - src.worker.evaluation_worker - INFO -   Max game length: 1000
+2025-10-28 00:54:35 - src.worker.evaluation_worker - INFO -   Simulations per move: 50
+2025-10-28 01:00:35 - src.worker.evaluation_worker - INFO - ⚖️ Starting evaluation #1
+2025-10-28 01:00:35 - src.worker.evaluation_worker - INFO - Evaluating model_step_000002 vs best model

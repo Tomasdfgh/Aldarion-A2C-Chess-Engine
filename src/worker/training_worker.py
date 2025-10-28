@@ -223,7 +223,6 @@ def start_training_worker(config):
                 continue
             
             step_count += 1
-            logger.info(f"🧠 Starting training step #{step_count}")
             
             # Load training data every N steps or if no dataloader exists
             if step_count % tr_config.load_data_steps == 1 or dataloader is None:
@@ -233,6 +232,7 @@ def start_training_worker(config):
                     time.sleep(30)
                     continue
                 
+                logger.info(f"🧠 Starting training step #{step_count}")
                 logger.info(f"Loading training data from {len(training_files)} files")
                 dataset = ChessTrainingDataset(training_files)
                 
@@ -289,6 +289,7 @@ def start_training_worker(config):
             logger.info(f"   Total loss: {metrics['avg_total_loss']:.4f}")
             logger.info(f"   Policy loss: {metrics['avg_policy_loss']:.4f}")
             logger.info(f"   Value loss: {metrics['avg_value_loss']:.4f}")
+            logger.info(f"   Training examples: {len(dataset):,}")
             logger.info(f"   Training time: {training_time:.1f}s")
             logger.info(f"   Model saved: {os.path.basename(model_dir)}")
             

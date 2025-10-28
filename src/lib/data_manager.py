@@ -120,6 +120,13 @@ class DataManager:
             return 0
         
         files = self.get_game_data_filenames()
+        # Keep at least the newest file (most recent generation)
+        if len(files) <= 1:
+            logger.debug("Only one data file exists, skipping cycling")
+            return 0
+            
+        # Exclude the newest file from removal
+        files = files[1:]  # Remove newest from consideration
         files.reverse()  # Oldest first for removal
         
         removed_count = 0

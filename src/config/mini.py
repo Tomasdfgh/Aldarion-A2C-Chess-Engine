@@ -14,14 +14,14 @@ class MiniConfig(Config):
         
         # Training Worker Configuration (Optimized for A4000s)
         self.trainer.batch_size = 512  # Larger batch size for 16GB GPUs
-        self.trainer.dataset_size = 10000  # Smaller window for testing (10K datapoints)
+        self.trainer.dataset_size = 100000  # Training window (100K datapoints)
         self.trainer.epoch_to_checkpoint = 1  # Save every epoch
         self.trainer.cleaning_processes = 8  # More processes for 32-core CPU
         self.trainer.vram_frac = 0.9  # Conservative GPU memory usage
         self.trainer.loss_weights = [1.0, 0.5]  # Same loss weights
         
         # Self-Play Worker Configuration (Fast testing)
-        self.selfplay.max_processes = 6  # More processes for 32 cores
+        self.selfplay.max_processes = 12  # More processes to utilize GPU better
         self.selfplay.search_threads = 16
         self.selfplay.simulation_num_per_move = 100  # Fewer sims for speed
         self.selfplay.c_puct = 1.5
@@ -32,13 +32,13 @@ class MiniConfig(Config):
         self.selfplay.resign_threshold = -0.8
         self.selfplay.min_resign_turn = 5
         self.selfplay.max_game_length = 200  # Shorter games for testing
-        self.selfplay.games_per_batch = 6  # Balanced for continuous training
+        self.selfplay.games_per_batch = 12  # More games per batch
         
         # Evaluation Worker Configuration (Quick evaluation)
-        self.eval.game_num = 10  # Only 10 games for fast testing
+        self.eval.game_num = 24  # 24 games for faster evaluation
         self.eval.replace_rate = 0.55  # Same promotion threshold
         self.eval.play_config.simulation_num_per_move = 50  # Fast evaluation
-        self.eval.play_config.max_processes = 4  # More parallel evaluation
+        self.eval.play_config.max_processes = 12  # Max parallel evaluation
         self.eval.play_config.c_puct = 1.0
         self.eval.play_config.tau_decay_rate = 0.6
         self.eval.play_config.noise_eps = 0

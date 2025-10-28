@@ -56,7 +56,7 @@ class ModelManager:
     
     def save_as_best_model(self, model):
         """
-        Save a model as the new best model
+        Save a model as the new best model, backing up the previous best model
         
         Args:
             model: ChessNet model to save
@@ -67,6 +67,24 @@ class ModelManager:
         try:
             # Ensure directory exists
             os.makedirs(os.path.dirname(config_path), exist_ok=True)
+            
+            # Backup existing best model before overwriting
+            if os.path.exists(weight_path):
+                from datetime import datetime
+                timestamp = datetime.now().strftime("%Y%m%d-%H%M%S.%f")[:-3]
+                backup_dir = os.path.join(self.resource.next_generation_model_dir, "copies", f"best_model_dethroned_{timestamp}")
+                os.makedirs(backup_dir, exist_ok=True)
+                
+                # Copy current best model to backup
+                import shutil
+                backup_config = os.path.join(backup_dir, "model_config.json")
+                backup_weight = os.path.join(backup_dir, "model_weight.pth")
+                
+                if os.path.exists(config_path):
+                    shutil.copy2(config_path, backup_config)
+                shutil.copy2(weight_path, backup_weight)
+                
+                logger.info(f"Backed up dethroned best model to {os.path.basename(backup_dir)}")
             
             # Save model config (basic info about architecture)
             model_config = {
@@ -96,7 +114,7 @@ class ModelManager:
         Returns:
             ChessNet model
         """
-        from core.model import ChessNet
+        from src.agent.model import ChessNet
         
         if self.load_best_model() is not None:
             logger.info("Best model already exists, not creating new one")
@@ -184,7 +202,7 @@ class ModelManager:
         Returns:
             ChessNet model
         """
-        from core.model import ChessNet
+        from src.agent.model import ChessNet
         
         config_path = os.path.join(model_dir, self.resource.next_generation_model_config_filename)
         weight_path = os.path.join(model_dir, self.resource.next_generation_model_weight_filename)

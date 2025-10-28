@@ -1,0 +1,20 @@
+2025-10-28 00:54:23 - src.worker.selfplay_worker - INFO - Starting self-play worker
+2025-10-28 00:54:23 - src.worker.selfplay_worker - INFO - Self-play configuration:
+2025-10-28 00:54:23 - src.worker.selfplay_worker - INFO -   Games per batch: 12
+2025-10-28 00:54:23 - src.worker.selfplay_worker - INFO -   Simulations per move: 100
+2025-10-28 00:54:23 - src.worker.selfplay_worker - INFO -   Max processes: 12
+2025-10-28 00:54:23 - src.worker.selfplay_worker - INFO -   Temperature decay: 0.99
+2025-10-28 00:54:23 - src.worker.selfplay_worker - INFO -   C-PUCT: 1.5
+2025-10-28 00:54:23 - src.worker.selfplay_worker - INFO - 🎮 Starting self-play generation #1
+2025-10-28 00:54:23 - src.lib.model_manager - INFO - Loaded best model from model_weight.pth
+2025-10-28 00:59:48 - src.lib.data_manager - INFO - Saved 2523 games to play_20251028-005948.548.pkl
+2025-10-28 00:59:48 - src.worker.selfplay_worker - INFO - ✅ Generation #1 complete:
+2025-10-28 00:59:48 - src.worker.selfplay_worker - INFO -    Games played: 12
+2025-10-28 00:59:48 - src.worker.selfplay_worker - INFO -    Training examples: 2,523
+2025-10-28 00:59:48 - src.worker.selfplay_worker - INFO -    Time: 325.1s (5.4m)
+2025-10-28 00:59:48 - src.worker.selfplay_worker - INFO -    Data saved: play_20251028-005948.548.pkl
+2025-10-28 00:59:48 - src.lib.data_manager - INFO - Starting data cycling: 51121 datapoints > 50000 threshold
+2025-10-28 00:59:48 - src.lib.data_manager - INFO - Removed play_20251028-001157.821.pkl (11907 datapoints)
+2025-10-28 00:59:48 - src.lib.data_manager - INFO - Data cycling complete: removed 1 files, 39214 datapoints remaining
+2025-10-28 00:59:53 - src.worker.selfplay_worker - INFO - 🎮 Starting self-play generation #2
+2025-10-28 00:59:53 - src.lib.model_manager - INFO - Loaded best model from model_weight.pth

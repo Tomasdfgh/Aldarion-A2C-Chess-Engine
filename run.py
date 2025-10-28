@@ -48,7 +48,7 @@ def load_config(config_type='normal'):
 
 def run_selfplay_worker(config):
     """Start the self-play worker"""
-    setup_logging(worker_type='selfplay')
+    setup_logging(log_level=logging.INFO, worker_type='selfplay')
     print("🎮 Starting Self-Play Worker...")
     print("=" * 60)
     
@@ -70,7 +70,7 @@ def run_selfplay_worker(config):
 
 def run_training_worker(config):
     """Start the training worker"""
-    setup_logging(worker_type='training')
+    setup_logging(log_level=logging.INFO, worker_type='training')
     print("🧠 Starting Training Worker...")
     print("=" * 60)
     
@@ -92,7 +92,7 @@ def run_training_worker(config):
 
 def run_evaluation_worker(config):
     """Start the evaluation worker"""
-    setup_logging(worker_type='evaluation')
+    setup_logging(log_level=logging.INFO, worker_type='evaluation')
     print("⚖️ Starting Evaluation Worker...")
     print("=" * 60)
     
@@ -210,8 +210,8 @@ Examples:
     
     args = parser.parse_args()
     
-    # Setup logging
-    setup_logging(getattr(logging, args.log_level))
+    # Setup basic logging (worker-specific logging set up later)
+    pass
     
     # Load configuration
     try:
