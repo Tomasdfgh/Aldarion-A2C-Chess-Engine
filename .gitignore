@@ -9,3 +9,12 @@ __pycache__/
 Iterations
 training_results/*
 evaluation_results/*
+
+# Model weights and training data
+data/models/
+data/training_data/
+*.pkl
+
+# Log files
+logs/
+*.log

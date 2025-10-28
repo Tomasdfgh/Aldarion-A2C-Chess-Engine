@@ -1,8 +1,0 @@
-{
-  "input_channels": 119,
-  "residual_blocks": 7,
-  "filters": 256,
-  "policy_size": 4672,
-  "model_id": "20251027-180430.396",
-  "saved_at": "2025-10-27T18:04:30.396639"
-}

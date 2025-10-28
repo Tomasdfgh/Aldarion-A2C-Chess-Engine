@@ -14,11 +14,12 @@ class MiniConfig(Config):
         
         # Training Worker Configuration (Optimized for A4000s)
         self.trainer.batch_size = 512  # Larger batch size for 16GB GPUs
-        self.trainer.dataset_size = 100000  # Training window (100K datapoints)
+        self.trainer.dataset_size = 1000000  # Training window (1M datapoints)
         self.trainer.epoch_to_checkpoint = 1  # Save every epoch
         self.trainer.cleaning_processes = 8  # More processes for 32-core CPU
         self.trainer.vram_frac = 0.9  # Conservative GPU memory usage
         self.trainer.loss_weights = [1.0, 0.5]  # Same loss weights
+        self.trainer.load_data_steps = 5  # Reload data very frequently for testing
         
         # Self-Play Worker Configuration (Fast testing)
         self.selfplay.max_processes = 12  # More processes to utilize GPU better

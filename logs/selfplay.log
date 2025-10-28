@@ -18,3 +18,60 @@
 2025-10-28 00:59:48 - src.lib.data_manager - INFO - Data cycling complete: removed 1 files, 39214 datapoints remaining
 2025-10-28 00:59:53 - src.worker.selfplay_worker - INFO - 🎮 Starting self-play generation #2
 2025-10-28 00:59:53 - src.lib.model_manager - INFO - Loaded best model from model_weight.pth
+2025-10-28 01:06:19 - src.lib.data_manager - INFO - Saved 2375 games to play_20251028-010619.825.pkl
+2025-10-28 01:06:19 - src.worker.selfplay_worker - INFO - ✅ Generation #2 complete:
+2025-10-28 01:06:19 - src.worker.selfplay_worker - INFO -    Games played: 12
+2025-10-28 01:06:19 - src.worker.selfplay_worker - INFO -    Training examples: 2,375
+2025-10-28 01:06:19 - src.worker.selfplay_worker - INFO -    Time: 386.0s (6.4m)
+2025-10-28 01:06:19 - src.worker.selfplay_worker - INFO -    Data saved: play_20251028-010619.825.pkl
+2025-10-28 01:06:19 - src.lib.data_manager - INFO - Starting data cycling: 55503 datapoints > 50000 threshold
+2025-10-28 01:06:19 - src.lib.data_manager - INFO - Removed play_20251028-001552.223.pkl (5145 datapoints)
+2025-10-28 01:06:19 - src.lib.data_manager - INFO - Removed play_20251028-003754.339.pkl (10717 datapoints)
+2025-10-28 01:06:19 - src.lib.data_manager - INFO - Data cycling complete: removed 2 files, 39641 datapoints remaining
+2025-10-28 01:06:24 - src.worker.selfplay_worker - INFO - 🎮 Starting self-play generation #3
+2025-10-28 01:06:25 - src.lib.model_manager - INFO - Loaded best model from model_weight.pth
+2025-10-28 01:07:57 - src.worker.selfplay_worker - INFO - Starting self-play worker
+2025-10-28 01:07:57 - src.worker.selfplay_worker - INFO - Self-play configuration:
+2025-10-28 01:07:57 - src.worker.selfplay_worker - INFO -   Games per batch: 12
+2025-10-28 01:07:57 - src.worker.selfplay_worker - INFO -   Simulations per move: 100
+2025-10-28 01:07:57 - src.worker.selfplay_worker - INFO -   Max processes: 12
+2025-10-28 01:07:57 - src.worker.selfplay_worker - INFO -   Temperature decay: 0.99
+2025-10-28 01:07:57 - src.worker.selfplay_worker - INFO -   C-PUCT: 1.5
+2025-10-28 01:07:57 - src.worker.selfplay_worker - INFO - 🎮 Starting self-play generation #1
+2025-10-28 01:07:57 - src.lib.model_manager - INFO - Loaded best model from model_weight.pth
+2025-10-28 01:15:49 - src.lib.data_manager - INFO - Saved 3963 games to play_20251028-011549.270.pkl
+2025-10-28 01:15:49 - src.worker.selfplay_worker - INFO - ✅ Generation #1 complete:
+2025-10-28 01:15:49 - src.worker.selfplay_worker - INFO -    Games played: 12
+2025-10-28 01:15:49 - src.worker.selfplay_worker - INFO -    Training examples: 3,963
+2025-10-28 01:15:49 - src.worker.selfplay_worker - INFO -    Game outcomes: W0 B8 D4 (draw rate: 33.3%)
+2025-10-28 01:15:49 - src.worker.selfplay_worker - INFO -    Time: 471.3s (7.9m)
+2025-10-28 01:15:49 - src.worker.selfplay_worker - INFO -    Data saved: play_20251028-011549.270.pkl
+2025-10-28 01:15:54 - src.worker.selfplay_worker - INFO - 🎮 Starting self-play generation #2
+2025-10-28 01:15:54 - src.lib.model_manager - INFO - Loaded best model from model_weight.pth
+2025-10-28 01:20:16 - src.lib.data_manager - INFO - Saved 2225 games to play_20251028-012016.222.pkl
+2025-10-28 01:20:16 - src.worker.selfplay_worker - INFO - ✅ Generation #2 complete:
+2025-10-28 01:20:16 - src.worker.selfplay_worker - INFO -    Games played: 12
+2025-10-28 01:20:16 - src.worker.selfplay_worker - INFO -    Training examples: 2,225
+2025-10-28 01:20:16 - src.worker.selfplay_worker - INFO -    Game outcomes: W0 B11 D1 (draw rate: 8.3%)
+2025-10-28 01:20:16 - src.worker.selfplay_worker - INFO -    Time: 261.7s (4.4m)
+2025-10-28 01:20:16 - src.worker.selfplay_worker - INFO -    Data saved: play_20251028-012016.222.pkl
+2025-10-28 01:20:21 - src.worker.selfplay_worker - INFO - 🎮 Starting self-play generation #3
+2025-10-28 01:20:21 - src.lib.model_manager - INFO - Loaded best model from model_weight.pth
+2025-10-28 01:26:42 - src.lib.data_manager - INFO - Saved 2899 games to play_20251028-012642.668.pkl
+2025-10-28 01:26:42 - src.worker.selfplay_worker - INFO - ✅ Generation #3 complete:
+2025-10-28 01:26:42 - src.worker.selfplay_worker - INFO -    Games played: 12
+2025-10-28 01:26:42 - src.worker.selfplay_worker - INFO -    Training examples: 2,899
+2025-10-28 01:26:42 - src.worker.selfplay_worker - INFO -    Game outcomes: W0 B8 D4 (draw rate: 33.3%)
+2025-10-28 01:26:42 - src.worker.selfplay_worker - INFO -    Time: 381.1s (6.4m)
+2025-10-28 01:26:42 - src.worker.selfplay_worker - INFO -    Data saved: play_20251028-012642.668.pkl
+2025-10-28 01:26:47 - src.worker.selfplay_worker - INFO - 🎮 Starting self-play generation #4
+2025-10-28 01:26:47 - src.lib.model_manager - INFO - Loaded best model from model_weight.pth
+2025-10-28 01:32:58 - src.lib.data_manager - INFO - Saved 2695 games to play_20251028-013258.759.pkl
+2025-10-28 01:32:58 - src.worker.selfplay_worker - INFO - ✅ Generation #4 complete:
+2025-10-28 01:32:58 - src.worker.selfplay_worker - INFO -    Games played: 12
+2025-10-28 01:32:58 - src.worker.selfplay_worker - INFO -    Training examples: 2,695
+2025-10-28 01:32:58 - src.worker.selfplay_worker - INFO -    Game outcomes: W0 B9 D3 (draw rate: 25.0%)
+2025-10-28 01:32:58 - src.worker.selfplay_worker - INFO -    Time: 370.8s (6.2m)
+2025-10-28 01:32:58 - src.worker.selfplay_worker - INFO -    Data saved: play_20251028-013258.759.pkl
+2025-10-28 01:33:03 - src.worker.selfplay_worker - INFO - 🎮 Starting self-play generation #5
+2025-10-28 01:33:04 - src.lib.model_manager - INFO - Loaded best model from model_weight.pth

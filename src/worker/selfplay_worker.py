@@ -88,9 +88,24 @@ def start_selfplay_worker(config):
             total_games = sum(stats.get('tasks_completed', 0) for stats in process_stats)
             total_examples = len(training_data)
             
+            # Calculate game outcome statistics
+            white_wins = 0
+            black_wins = 0
+            draws = 0
+            
+            for stats in process_stats:
+                game_outcomes = stats.get('game_outcomes', {})
+                white_wins += game_outcomes.get('white_wins', 0)
+                black_wins += game_outcomes.get('black_wins', 0)
+                draws += game_outcomes.get('draws', 0)
+            
+            total_decisive = white_wins + black_wins
+            draw_rate = (draws / total_games * 100) if total_games > 0 else 0
+            
             logger.info(f"✅ Generation #{generation_count} complete:")
             logger.info(f"   Games played: {total_games}")
             logger.info(f"   Training examples: {total_examples:,}")
+            logger.info(f"   Game outcomes: W{white_wins} B{black_wins} D{draws} (draw rate: {draw_rate:.1f}%)")
             logger.info(f"   Time: {generation_time:.1f}s ({generation_time/60:.1f}m)")
             logger.info(f"   Data saved: {os.path.basename(saved_file)}")
             

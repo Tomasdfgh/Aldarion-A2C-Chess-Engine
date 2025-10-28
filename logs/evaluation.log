@@ -6,3 +6,123 @@
 2025-10-28 00:54:35 - src.worker.evaluation_worker - INFO -   Simulations per move: 50
 2025-10-28 01:00:35 - src.worker.evaluation_worker - INFO - ⚖️ Starting evaluation #1
 2025-10-28 01:00:35 - src.worker.evaluation_worker - INFO - Evaluating model_step_000002 vs best model
+2025-10-28 01:03:02 - src.worker.evaluation_worker - INFO - ✅ Evaluation complete for model_step_000002:
+2025-10-28 01:03:02 - src.worker.evaluation_worker - INFO -    Games played: 24
+2025-10-28 01:03:02 - src.worker.evaluation_worker - INFO -    Score rate: 56.2%
+2025-10-28 01:03:02 - src.worker.evaluation_worker - INFO -    New model wins: 4
+2025-10-28 01:03:02 - src.worker.evaluation_worker - INFO -    Old model wins: 1
+2025-10-28 01:03:02 - src.worker.evaluation_worker - INFO -    Draws: 19
+2025-10-28 01:03:02 - src.worker.evaluation_worker - INFO -    Evaluation time: 146.5s (2.4m)
+2025-10-28 01:03:02 - src.worker.evaluation_worker - INFO - 🎉 PROMOTING MODEL: model_step_000002
+2025-10-28 01:03:02 - src.worker.evaluation_worker - INFO -    Score rate 56.2% > 55.0% threshold
+2025-10-28 01:03:02 - src.lib.model_manager - INFO - Backed up dethroned best model to best_model_dethroned_20251028-010302.222
+2025-10-28 01:03:02 - src.lib.model_manager - INFO - Saved new best model to model_weight.pth
+2025-10-28 01:03:02 - src.worker.evaluation_worker - INFO -    model_step_000002 is now the best model
+2025-10-28 01:03:02 - src.lib.model_manager - INFO - Archived model model_step_000002
+2025-10-28 01:03:02 - src.worker.evaluation_worker - INFO -    model_step_000002 archived
+2025-10-28 01:04:07 - src.worker.evaluation_worker - INFO - ⚖️ Starting evaluation #2
+2025-10-28 01:04:07 - src.worker.evaluation_worker - INFO - Evaluating model_step_000011 vs best model
+2025-10-28 01:06:31 - src.worker.evaluation_worker - INFO - ✅ Evaluation complete for model_step_000011:
+2025-10-28 01:06:31 - src.worker.evaluation_worker - INFO -    Games played: 24
+2025-10-28 01:06:31 - src.worker.evaluation_worker - INFO -    Score rate: 52.1%
+2025-10-28 01:06:31 - src.worker.evaluation_worker - INFO -    New model wins: 4
+2025-10-28 01:06:31 - src.worker.evaluation_worker - INFO -    Old model wins: 3
+2025-10-28 01:06:31 - src.worker.evaluation_worker - INFO -    Draws: 17
+2025-10-28 01:06:31 - src.worker.evaluation_worker - INFO -    Evaluation time: 144.0s (2.4m)
+2025-10-28 01:06:31 - src.worker.evaluation_worker - INFO - ❌ REJECTING MODEL: model_step_000011
+2025-10-28 01:06:31 - src.worker.evaluation_worker - INFO -    Score rate 52.1% <= 55.0% threshold
+2025-10-28 01:06:31 - src.lib.model_manager - INFO - Archived model model_step_000011
+2025-10-28 01:06:31 - src.worker.evaluation_worker - INFO -    model_step_000011 archived
+2025-10-28 01:07:36 - src.worker.evaluation_worker - INFO - ⚖️ Starting evaluation #3
+2025-10-28 01:07:36 - src.worker.evaluation_worker - INFO - Evaluating model_step_000021 vs best model
+2025-10-28 01:09:21 - src.worker.evaluation_worker - INFO - ✅ Evaluation complete for model_step_000021:
+2025-10-28 01:09:21 - src.worker.evaluation_worker - INFO -    Games played: 24
+2025-10-28 01:09:21 - src.worker.evaluation_worker - INFO -    Score rate: 47.9%
+2025-10-28 01:09:21 - src.worker.evaluation_worker - INFO -    New model wins: 5
+2025-10-28 01:09:21 - src.worker.evaluation_worker - INFO -    Old model wins: 6
+2025-10-28 01:09:21 - src.worker.evaluation_worker - INFO -    Draws: 13
+2025-10-28 01:09:21 - src.worker.evaluation_worker - INFO -    Evaluation time: 105.5s (1.8m)
+2025-10-28 01:09:21 - src.worker.evaluation_worker - INFO - ❌ REJECTING MODEL: model_step_000021
+2025-10-28 01:09:21 - src.worker.evaluation_worker - INFO -    Score rate 47.9% <= 55.0% threshold
+2025-10-28 01:09:21 - src.lib.model_manager - INFO - Archived model model_step_000021
+2025-10-28 01:09:21 - src.worker.evaluation_worker - INFO -    model_step_000021 archived
+2025-10-28 01:10:27 - src.worker.evaluation_worker - INFO - ⚖️ Starting evaluation #4
+2025-10-28 01:10:27 - src.worker.evaluation_worker - INFO - Evaluating model_step_000029 vs best model
+2025-10-28 01:13:08 - src.worker.evaluation_worker - INFO - ✅ Evaluation complete for model_step_000029:
+2025-10-28 01:13:08 - src.worker.evaluation_worker - INFO -    Games played: 24
+2025-10-28 01:13:08 - src.worker.evaluation_worker - INFO -    Score rate: 37.5%
+2025-10-28 01:13:08 - src.worker.evaluation_worker - INFO -    New model wins: 2
+2025-10-28 01:13:08 - src.worker.evaluation_worker - INFO -    Old model wins: 8
+2025-10-28 01:13:08 - src.worker.evaluation_worker - INFO -    Draws: 14
+2025-10-28 01:13:08 - src.worker.evaluation_worker - INFO -    Evaluation time: 161.3s (2.7m)
+2025-10-28 01:13:08 - src.worker.evaluation_worker - INFO - ❌ REJECTING MODEL: model_step_000029
+2025-10-28 01:13:08 - src.worker.evaluation_worker - INFO -    Score rate 37.5% <= 55.0% threshold
+2025-10-28 01:13:08 - src.lib.model_manager - INFO - Archived model model_step_000029
+2025-10-28 01:13:08 - src.worker.evaluation_worker - INFO -    model_step_000029 archived
+2025-10-28 01:14:13 - src.worker.evaluation_worker - INFO - ⚖️ Starting evaluation #5
+2025-10-28 01:14:13 - src.worker.evaluation_worker - INFO - Evaluating model_step_000040 vs best model
+2025-10-28 01:16:24 - src.worker.evaluation_worker - INFO - ✅ Evaluation complete for model_step_000040:
+2025-10-28 01:16:24 - src.worker.evaluation_worker - INFO -    Games played: 24
+2025-10-28 01:16:24 - src.worker.evaluation_worker - INFO -    Score rate: 50.0%
+2025-10-28 01:16:24 - src.worker.evaluation_worker - INFO -    New model wins: 4
+2025-10-28 01:16:24 - src.worker.evaluation_worker - INFO -    Old model wins: 4
+2025-10-28 01:16:24 - src.worker.evaluation_worker - INFO -    Draws: 16
+2025-10-28 01:16:24 - src.worker.evaluation_worker - INFO -    Evaluation time: 131.2s (2.2m)
+2025-10-28 01:16:24 - src.worker.evaluation_worker - INFO - ❌ REJECTING MODEL: model_step_000040
+2025-10-28 01:16:24 - src.worker.evaluation_worker - INFO -    Score rate 50.0% <= 55.0% threshold
+2025-10-28 01:16:24 - src.lib.model_manager - INFO - Archived model model_step_000040
+2025-10-28 01:16:24 - src.worker.evaluation_worker - INFO -    model_step_000040 archived
+2025-10-28 01:17:29 - src.worker.evaluation_worker - INFO - ⚖️ Starting evaluation #6
+2025-10-28 01:17:29 - src.worker.evaluation_worker - INFO - Evaluating model_step_000049 vs best model
+2025-10-28 01:20:24 - src.worker.evaluation_worker - INFO - ✅ Evaluation complete for model_step_000049:
+2025-10-28 01:20:24 - src.worker.evaluation_worker - INFO -    Games played: 24
+2025-10-28 01:20:24 - src.worker.evaluation_worker - INFO -    Score rate: 47.9%
+2025-10-28 01:20:24 - src.worker.evaluation_worker - INFO -    New model wins: 2
+2025-10-28 01:20:24 - src.worker.evaluation_worker - INFO -    Old model wins: 3
+2025-10-28 01:20:24 - src.worker.evaluation_worker - INFO -    Draws: 19
+2025-10-28 01:20:24 - src.worker.evaluation_worker - INFO -    Evaluation time: 175.0s (2.9m)
+2025-10-28 01:20:24 - src.worker.evaluation_worker - INFO - ❌ REJECTING MODEL: model_step_000049
+2025-10-28 01:20:24 - src.worker.evaluation_worker - INFO -    Score rate 47.9% <= 55.0% threshold
+2025-10-28 01:20:24 - src.lib.model_manager - INFO - Archived model model_step_000049
+2025-10-28 01:20:24 - src.worker.evaluation_worker - INFO -    model_step_000049 archived
+2025-10-28 01:21:29 - src.worker.evaluation_worker - INFO - ⚖️ Starting evaluation #7
+2025-10-28 01:21:29 - src.worker.evaluation_worker - INFO - Evaluating model_step_000060 vs best model
+2025-10-28 01:23:21 - src.worker.evaluation_worker - INFO - ✅ Evaluation complete for model_step_000060:
+2025-10-28 01:23:21 - src.worker.evaluation_worker - INFO -    Games played: 24
+2025-10-28 01:23:21 - src.worker.evaluation_worker - INFO -    Score rate: 37.5%
+2025-10-28 01:23:21 - src.worker.evaluation_worker - INFO -    New model wins: 2
+2025-10-28 01:23:21 - src.worker.evaluation_worker - INFO -    Old model wins: 8
+2025-10-28 01:23:21 - src.worker.evaluation_worker - INFO -    Draws: 14
+2025-10-28 01:23:21 - src.worker.evaluation_worker - INFO -    Evaluation time: 112.3s (1.9m)
+2025-10-28 01:23:21 - src.worker.evaluation_worker - INFO - ❌ REJECTING MODEL: model_step_000060
+2025-10-28 01:23:21 - src.worker.evaluation_worker - INFO -    Score rate 37.5% <= 55.0% threshold
+2025-10-28 01:23:21 - src.lib.model_manager - INFO - Archived model model_step_000060
+2025-10-28 01:23:21 - src.worker.evaluation_worker - INFO -    model_step_000060 archived
+2025-10-28 01:24:26 - src.worker.evaluation_worker - INFO - ⚖️ Starting evaluation #8
+2025-10-28 01:24:26 - src.worker.evaluation_worker - INFO - Evaluating model_step_000068 vs best model
+2025-10-28 01:26:58 - src.worker.evaluation_worker - INFO - ✅ Evaluation complete for model_step_000068:
+2025-10-28 01:26:58 - src.worker.evaluation_worker - INFO -    Games played: 24
+2025-10-28 01:26:58 - src.worker.evaluation_worker - INFO -    Score rate: 50.0%
+2025-10-28 01:26:58 - src.worker.evaluation_worker - INFO -    New model wins: 3
+2025-10-28 01:26:58 - src.worker.evaluation_worker - INFO -    Old model wins: 3
+2025-10-28 01:26:58 - src.worker.evaluation_worker - INFO -    Draws: 18
+2025-10-28 01:26:58 - src.worker.evaluation_worker - INFO -    Evaluation time: 151.8s (2.5m)
+2025-10-28 01:26:58 - src.worker.evaluation_worker - INFO - ❌ REJECTING MODEL: model_step_000068
+2025-10-28 01:26:58 - src.worker.evaluation_worker - INFO -    Score rate 50.0% <= 55.0% threshold
+2025-10-28 01:26:58 - src.lib.model_manager - INFO - Archived model model_step_000068
+2025-10-28 01:26:58 - src.worker.evaluation_worker - INFO -    model_step_000068 archived
+2025-10-28 01:28:03 - src.worker.evaluation_worker - INFO - ⚖️ Starting evaluation #9
+2025-10-28 01:28:03 - src.worker.evaluation_worker - INFO - Evaluating model_step_000078 vs best model
+2025-10-28 01:31:42 - src.worker.evaluation_worker - INFO - ✅ Evaluation complete for model_step_000078:
+2025-10-28 01:31:42 - src.worker.evaluation_worker - INFO -    Games played: 24
+2025-10-28 01:31:42 - src.worker.evaluation_worker - INFO -    Score rate: 41.7%
+2025-10-28 01:31:42 - src.worker.evaluation_worker - INFO -    New model wins: 3
+2025-10-28 01:31:42 - src.worker.evaluation_worker - INFO -    Old model wins: 7
+2025-10-28 01:31:42 - src.worker.evaluation_worker - INFO -    Draws: 14
+2025-10-28 01:31:42 - src.worker.evaluation_worker - INFO -    Evaluation time: 218.5s (3.6m)
+2025-10-28 01:31:42 - src.worker.evaluation_worker - INFO - ❌ REJECTING MODEL: model_step_000078
+2025-10-28 01:31:42 - src.worker.evaluation_worker - INFO -    Score rate 41.7% <= 55.0% threshold
+2025-10-28 01:31:42 - src.lib.model_manager - INFO - Archived model model_step_000078
+2025-10-28 01:31:42 - src.worker.evaluation_worker - INFO -    model_step_000078 archived
+2025-10-28 01:32:47 - src.worker.evaluation_worker - INFO - ⚖️ Starting evaluation #10
+2025-10-28 01:32:47 - src.worker.evaluation_worker - INFO - Evaluating model_step_000091 vs best model

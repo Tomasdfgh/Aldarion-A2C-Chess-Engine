@@ -28,7 +28,7 @@ class TrainerConfig:
         self.dataset_size = 100000  # Rolling window size
         self.start_total_steps = 0
         self.save_model_steps = 25  # Not used in continuous mode, but kept for compatibility
-        self.load_data_steps = 100  # How often to refresh data window
+        self.load_data_steps = 10  # How often to refresh data window
         self.loss_weights = [1.0, 0.5]  # [policy, value] - value reduced to prevent overfitting
 
 

@@ -70,7 +70,6 @@ class ModelManager:
             
             # Backup existing best model before overwriting
             if os.path.exists(weight_path):
-                from datetime import datetime
                 timestamp = datetime.now().strftime("%Y%m%d-%H%M%S.%f")[:-3]
                 backup_dir = os.path.join(self.resource.next_generation_model_dir, "copies", f"best_model_dethroned_{timestamp}")
                 os.makedirs(backup_dir, exist_ok=True)
