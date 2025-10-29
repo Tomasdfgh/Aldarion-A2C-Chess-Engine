@@ -73,20 +73,6 @@ python run.py eval
 
 Evaluates candidate models against the current best model. Promotes superior models and archives evaluated candidates in FIFO order.
 
-### Running All Workers with tmux
-
-```bash
-# Start all three workers in parallel tmux sessions
-tmux new-session -d -s selfplay 'python run.py self'
-tmux new-session -d -s training 'python run.py opt'
-tmux new-session -d -s evaluation 'python run.py eval'
-
-# Attach to view any worker (optional)
-tmux attach -t selfplay    # View self-play logs
-tmux attach -t training    # View training logs  
-tmux attach -t evaluation  # View evaluation logs
-```
-
 The system automatically coordinates between workers: self-play generates data, training creates new models, and evaluation determines which models become the new best model.
 
 This project is still in development.
