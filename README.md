@@ -35,7 +35,7 @@ python -c "import torch; import chess; print('PyTorch version:', torch.__version
 ### Initialize the System
 
 ```bash
-python run.py init
+python -m src.run init
 ```
 
 Initialize the system with a random model to bootstrap the training process. This creates the initial best model required for self-play and training.
@@ -43,7 +43,7 @@ Initialize the system with a random model to bootstrap the training process. Thi
 ### Check System Status
 
 ```bash
-python run.py status
+python -m src.run status
 ```
 
 Display the current system status including best model availability, number of candidate models, training data statistics, and system directories.
@@ -54,21 +54,21 @@ The training system consists of three parallel workers that work together:
 
 #### Start Self-Play Worker
 ```bash
-python run.py self
+python -m src.run self
 ```
 
 Generates training data by playing games using the current best model. Runs continuously and saves game data for training.
 
 #### Start Training Worker
 ```bash
-python run.py opt
+python -m src.run opt
 ```
 
 Trains new models using the latest self-play data. Automatically limits candidate pool to 20 models and waits for evaluation when pool is full.
 
 #### Start Evaluation Worker
 ```bash
-python run.py eval
+python -m src.run eval
 ```
 
 Evaluates candidate models against the current best model. Promotes superior models and archives evaluated candidates in FIFO order.
