@@ -14,6 +14,7 @@ evaluation_results/*
 data/models/
 data/training_data/
 *.pkl
+*.json
 
 # Log files
 logs/

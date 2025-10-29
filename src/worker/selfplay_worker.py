@@ -9,6 +9,8 @@ import sys
 import time
 import logging
 from datetime import datetime
+import multiprocessing as mp
+import torch
 
 # Import Aldarion modules
 from src.lib.model_manager import ModelManager
@@ -22,47 +24,37 @@ logger = logging.getLogger(__name__)
 def start_selfplay_worker(config):
     """
     Start the continuous self-play worker
-    
-    Args:
-        config: Configuration object with selfplay, model, and resource settings
     """
-    # Set multiprocessing start method for CUDA compatibility
-    import multiprocessing as mp
     mp.set_start_method('spawn', force=True)
-    
-    logger.info("Starting self-play worker")
     
     model_manager = ModelManager(config)
     data_manager = DataManager(config)
-    
-    # Self-play configuration
     sp_config = config.selfplay
     
+    logger.info("Starting self-play worker")
     logger.info(f"Self-play configuration:")
-    logger.info(f"  Games per batch: {sp_config.games_per_batch}")
-    logger.info(f"  Simulations per move: {sp_config.simulation_num_per_move}")
-    logger.info(f"  Max processes: {sp_config.max_processes}")
-    logger.info(f"  Temperature decay: {sp_config.tau_decay_rate}")
-    logger.info(f"  C-PUCT: {sp_config.c_puct}")
+    logger.info(f"Games per batch: {sp_config.games_per_batch}")
+    logger.info(f"Simulations per move: {sp_config.simulation_num_per_move}")
+    logger.info(f"Max processes: {sp_config.max_processes}")
+    logger.info(f"Temperature decay: {sp_config.tau_decay_rate}")
+    logger.info(f"C-PUCT: {sp_config.c_puct}")
     
     generation_count = 0
     
     try:
         while True:
             generation_count += 1
-            logger.info(f"🎮 Starting self-play generation #{generation_count}")
+            logger.info(f"\nStarting self-play generation #{generation_count}")
             
             # Load the current best model
             best_model = model_manager.load_best_model()
             if best_model is None:
-                logger.error("No best model available, cannot generate self-play data")
-                logger.info("Run: python run.py init --type mini")
-                time.sleep(30)
-                continue
+                logger.info("No best model available, creating initial model")
+                best_model = model_manager.create_initial_best_model()
             
             # Save current model temporarily for workers to load
-            temp_model_path = os.path.join(config.resource.model_dir, "temp_selfplay_model.pth")
-            model_manager.save_model_weights(best_model, temp_model_path)
+            temp_model_path = os.path.join(config.resource.model_dir, "best", "temp_selfplay_model.pth")
+            torch.save(best_model.state_dict(), temp_model_path)
             
             # Generate self-play data
             start_time = time.time()
@@ -99,21 +91,17 @@ def start_selfplay_worker(config):
                 black_wins += game_outcomes.get('black_wins', 0)
                 draws += game_outcomes.get('draws', 0)
             
-            total_decisive = white_wins + black_wins
             draw_rate = (draws / total_games * 100) if total_games > 0 else 0
             
-            logger.info(f"✅ Generation #{generation_count} complete:")
-            logger.info(f"   Games played: {total_games}")
-            logger.info(f"   Training examples: {total_examples:,}")
-            logger.info(f"   Game outcomes: W{white_wins} B{black_wins} D{draws} (draw rate: {draw_rate:.1f}%)")
-            logger.info(f"   Time: {generation_time:.1f}s ({generation_time/60:.1f}m)")
-            logger.info(f"   Data saved: {os.path.basename(saved_file)}")
+            logger.info(f"Generation #{generation_count} complete:")
+            logger.info(f"Games played: {total_games}")
+            logger.info(f"Training examples: {total_examples:,}")
+            logger.info(f"Game outcomes: W{white_wins} B{black_wins} D{draws} (draw rate: {draw_rate:.1f}%)")
+            logger.info(f"Time: {generation_time:.1f}s ({generation_time/60:.1f}m)")
+            logger.info(f"Data saved: {os.path.basename(saved_file)}")
             
-            # Check and cycle old data if needed
             data_manager.cycle_old_data_if_needed()
-            
-            # Brief pause before next generation
-            time.sleep(5)
+            time.sleep(2)
             
     except KeyboardInterrupt:
         logger.info("Self-play worker stopped by user")
@@ -127,13 +115,6 @@ def start_selfplay_worker(config):
 def generate_selfplay_batch(model_path, config):
     """
     Generate a batch of self-play games
-    
-    Args:
-        model_path: Path to model weights file
-        config: Configuration object
-        
-    Returns:
-        tuple: (training_data, process_statistics)
     """
     sp_config = config.selfplay
     
@@ -146,19 +127,13 @@ def generate_selfplay_batch(model_path, config):
         'tau_decay_rate': sp_config.tau_decay_rate,
         'noise_eps': sp_config.noise_eps,
         'dirichlet_alpha': sp_config.dirichlet_alpha,
-        'resign_threshold': sp_config.resign_threshold,
-        'min_resign_turn': sp_config.min_resign_turn,
         'max_game_length': sp_config.max_game_length,
         'seed': int(time.time()) % 10000  # Dynamic seed
     }
     
     # Calculate CPU utilization based on max_processes
-    import multiprocessing as mp
     total_cpus = mp.cpu_count()
     cpu_utilization = min(0.9, sp_config.max_processes / total_cpus)
-    
-    logger.debug(f"Generating {sp_config.games_per_batch} games with {sp_config.simulation_num_per_move} simulations per move")
-    
     training_data, process_statistics = run_parallel_task_execution(
         task_config=task_config,
         worker_function=selfplay_worker_process,
@@ -166,43 +141,3 @@ def generate_selfplay_batch(model_path, config):
     )
     
     return training_data, process_statistics
-
-
-def save_model_weights(model, path):
-    """
-    Standalone function to save model weights
-    
-    Args:
-        model: PyTorch model
-        path: Path to save weights
-    """
-    import torch
-    torch.save(model.state_dict(), path)
-
-
-# Add the missing save_model_weights method to ModelManager for compatibility
-def patch_model_manager():
-    """Add save_model_weights method to ModelManager if not present"""
-    if not hasattr(ModelManager, 'save_model_weights'):
-        ModelManager.save_model_weights = lambda self, model, path: save_model_weights(model, path)
-
-# Apply the patch
-patch_model_manager()
-
-
-if __name__ == "__main__":
-    # For testing the worker directly
-    import multiprocessing as mp
-    mp.set_start_method('spawn', force=True)
-    
-    # Load mini config for testing
-    from src.config.mini import get_config
-    config = get_config()
-    
-    # Setup logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
-    
-    start_selfplay_worker(config)

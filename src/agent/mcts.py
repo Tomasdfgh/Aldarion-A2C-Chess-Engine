@@ -330,7 +330,7 @@ def select_move(root, temperature=1.0):
 ========================================================================================================================
 '''
 
-def run_game(model, num_simulations, device, temperature=1.0, c_puct=2.0, current_game=None, total_games=None, process_id=None):
+def run_game(model, num_simulations, device, temperature=1.0, c_puct=2.0, max_game_length=800, current_game=None, total_games=None, process_id=None):
 	"""
 	Play a full game using MCTS with AlphaZero parameters, collecting training data
 	Returns tuple of (training_data, ending_reason) where training_data is list of 
@@ -354,7 +354,7 @@ def run_game(model, num_simulations, device, temperature=1.0, c_puct=2.0, curren
 	move_count = 0
 	root = None
 	
-	while not board.is_game_over() and move_count < 800:
+	while not board.is_game_over() and move_count < max_game_length:
 
 		print(f"Move {move_count + 1}, {'White' if board.turn else 'Black'} to move")
 		
@@ -418,9 +418,9 @@ def run_game(model, num_simulations, device, temperature=1.0, c_puct=2.0, curren
 		game_outcome = 0
 		ending_reason = "Draw by fivefold repetition"
 		print(f"Game over: {ending_reason}")
-	elif move_count >= 800:
+	elif move_count >= max_game_length:
 		game_outcome = 0
-		ending_reason = "Draw by 800-ply limit"
+		ending_reason = f"Draw by {max_game_length}-ply limit"
 		print(f"Game over: {ending_reason}")
 	else:
 		# This should not happen if game loop only continues while conditions are met
@@ -503,7 +503,7 @@ def return_move_and_child(model, board_fen, num_simulations, device, game_histor
 	return best_move, selected_child
 
 
-def play_single_evaluation_game(white_model, black_model, num_simulations, device, game_id, white_is_new, old_model_path, new_model_path, process_id, game_num, total_games):
+def play_single_evaluation_game(white_model, black_model, num_simulations, device, game_id, white_is_new, old_model_path, new_model_path, process_id, game_num, total_games, max_game_length=800):
 	"""
 	Play a single competitive game between two models with private MCTS trees
 	"""
@@ -521,7 +521,7 @@ def play_single_evaluation_game(white_model, black_model, num_simulations, devic
 		white_tree = None
 		black_tree = None
 		
-		while not board.is_game_over() and move_count < 800:
+		while not board.is_game_over() and move_count < max_game_length:
 			current_model = white_model if board.turn else black_model
 			current_tree = white_tree if board.turn else black_tree
 			current_player = "White" if board.turn else "Black"
@@ -578,9 +578,9 @@ def play_single_evaluation_game(white_model, black_model, num_simulations, devic
 		elif board.is_fivefold_repetition():
 			result = 0.0
 			result_str = "Draw by fivefold repetition"
-		elif move_count >= 800:
+		elif move_count >= max_game_length:
 			result = 0.0
-			result_str = "Draw by 800-ply limit"
+			result_str = f"Draw by {max_game_length}-ply limit"
 		else:
 			result = 0.0
 			result_str = "Draw by unexpected end"

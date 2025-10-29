@@ -51,6 +51,7 @@ def selfplay_worker_process(gpu_device, num_games, task_config, process_id):
         num_simulations = task_config['num_simulations']
         temperature = task_config.get('temperature', 1.0)
         c_puct = task_config.get('c_puct', 2.0)
+        max_game_length = task_config.get('max_game_length', 800)
         model_path = task_config['model_path']
         
         print(f"Process {process_id}: Starting on {gpu_device} with {num_games} games (seed: {worker_seed})")
@@ -80,7 +81,7 @@ def selfplay_worker_process(gpu_device, num_games, task_config, process_id):
                 game_start_time = time.time()
                 print(f"Process {process_id}: Game {game_num + 1}/{num_games}")
 
-                training_data, ending_reason = mt.run_game(model, num_simulations, device, temperature=temperature, c_puct=c_puct, current_game=game_num + 1, total_games=num_games, process_id=process_id)
+                training_data, ending_reason = mt.run_game(model, num_simulations, device, temperature=temperature, c_puct=c_puct, max_game_length=max_game_length, current_game=game_num + 1, total_games=num_games, process_id=process_id)
                 all_training_data.extend(training_data)
                 
                 game_length = len(training_data)
@@ -160,6 +161,7 @@ def evaluation_worker_process(gpu_device: str, num_games: int, task_config,
         worker_seed = set_worker_seed(process_id, base_seed)
         
         num_simulations = task_config['num_simulations']
+        max_game_length = task_config.get('max_game_length', 800)
         old_model_path = task_config['old_model_path']
         new_model_path = task_config['new_model_path']
         starting_game_id = process_id * num_games
@@ -219,7 +221,8 @@ def evaluation_worker_process(gpu_device: str, num_games: int, task_config,
                     new_model_path=new_model_path,
                     process_id=process_id,
                     game_num=game_num + 1,
-                    total_games=num_games
+                    total_games=num_games,
+                    max_game_length=max_game_length
                 )
                 
                 game_results.append(game_result)

@@ -10,8 +10,10 @@ import glob
 from datetime import datetime
 import logging
 
-logger = logging.getLogger(__name__)
+#Local Imports
+from src.agent.model import ChessNet
 
+logger = logging.getLogger(__name__)
 
 class ModelManager:
     """Manages best model and next-generation model lifecycle"""
@@ -23,12 +25,7 @@ class ModelManager:
     def load_best_model(self):
         """
         Load the current best model
-        
-        Returns:
-            ChessNet model or None if no best model exists
         """
-        from src.agent.model import ChessNet  # Import your model
-        
         config_path = self.resource.model_best_config_path
         weight_path = self.resource.model_best_weight_path
         
@@ -37,16 +34,8 @@ class ModelManager:
             return None
         
         try:
-            # Load model config
-            with open(config_path, 'r') as f:
-                model_config = json.load(f)
-            
-            # Create model
             model = ChessNet()
-            
-            # Load weights
-            model.load_state_dict(torch.load(weight_path, map_location='cpu'))
-            
+            model.load_state_dict(torch.load(weight_path, map_location='cpu', weights_only=True))
             logger.info(f"Loaded best model from {os.path.basename(weight_path)}")
             return model
             
@@ -57,9 +46,6 @@ class ModelManager:
     def save_as_best_model(self, model):
         """
         Save a model as the new best model, backing up the previous best model
-        
-        Args:
-            model: ChessNet model to save
         """
         config_path = self.resource.model_best_config_path
         weight_path = self.resource.model_best_weight_path
@@ -75,12 +61,10 @@ class ModelManager:
                 os.makedirs(backup_dir, exist_ok=True)
                 
                 # Copy current best model to backup
-                import shutil
                 backup_config = os.path.join(backup_dir, "model_config.json")
                 backup_weight = os.path.join(backup_dir, "model_weight.pth")
                 
-                if os.path.exists(config_path):
-                    shutil.copy2(config_path, backup_config)
+                shutil.copy2(config_path, backup_config)
                 shutil.copy2(weight_path, backup_weight)
                 
                 logger.info(f"Backed up dethroned best model to {os.path.basename(backup_dir)}")
@@ -109,11 +93,7 @@ class ModelManager:
     def create_initial_best_model(self):
         """
         Create an initial best model with random weights if none exists
-        
-        Returns:
-            ChessNet model
         """
-        from src.agent.model import ChessNet
         
         if self.load_best_model() is not None:
             logger.info("Best model already exists, not creating new one")
@@ -129,13 +109,6 @@ class ModelManager:
     def save_next_generation_model(self, model, model_id=None):
         """
         Save a model as a next-generation candidate
-        
-        Args:
-            model: ChessNet model to save
-            model_id: Optional model ID, auto-generated if None
-            
-        Returns:
-            Path to saved model directory
         """
         if model_id is None:
             model_id = datetime.now().strftime("%Y%m%d-%H%M%S.%f")[:-3]  # Include milliseconds
@@ -144,10 +117,8 @@ class ModelManager:
         model_dir = os.path.join(self.resource.next_generation_model_dir, model_dir_name)
         
         try:
-            # Create model directory
+
             os.makedirs(model_dir, exist_ok=True)
-            
-            # Save model config
             config_path = os.path.join(model_dir, self.resource.next_generation_model_config_filename)
             model_config = {
                 'input_channels': 119,
@@ -175,9 +146,6 @@ class ModelManager:
     def get_next_generation_model_dirs(self):
         """
         Get list of next-generation model directories, sorted by creation time
-        
-        Returns:
-            List of directory paths, newest first
         """
         pattern = os.path.join(self.resource.next_generation_model_dir, "model_*")
         dirs = glob.glob(pattern)
@@ -187,21 +155,13 @@ class ModelManager:
         
         # Sort by modification time, newest first
         dirs.sort(key=lambda x: os.path.getmtime(x), reverse=True)
-        
-        logger.debug(f"Found {len(dirs)} next-generation models")
+
         return dirs
     
     def load_next_generation_model(self, model_dir):
         """
         Load a next-generation model from its directory
-        
-        Args:
-            model_dir: Path to model directory
-            
-        Returns:
-            ChessNet model
         """
-        from src.agent.model import ChessNet
         
         config_path = os.path.join(model_dir, self.resource.next_generation_model_config_filename)
         weight_path = os.path.join(model_dir, self.resource.next_generation_model_weight_filename)
@@ -210,17 +170,8 @@ class ModelManager:
             raise FileNotFoundError(f"Model files not found in {model_dir}")
         
         try:
-            # Load model config (for validation)
-            with open(config_path, 'r') as f:
-                model_config = json.load(f)
-            
-            # Create model
             model = ChessNet()
-            
-            # Load weights
-            model.load_state_dict(torch.load(weight_path, map_location='cpu'))
-            
-            logger.debug(f"Loaded next-generation model from {os.path.basename(model_dir)}")
+            model.load_state_dict(torch.load(weight_path, map_location='cpu', weights_only=True))
             return model
             
         except Exception as e:
@@ -231,25 +182,18 @@ class ModelManager:
         """
         Load the most recently saved next-generation model
         Falls back to best model if no next-generation models exist
-        
-        Returns:
-            ChessNet model or None
         """
         dirs = self.get_next_generation_model_dirs()
         
         if not dirs:
-            logger.debug("No next-generation models found, loading best model")
             return self.load_best_model()
         
-        latest_dir = dirs[0]  # Newest first
+        latest_dir = dirs[0]
         return self.load_next_generation_model(latest_dir)
     
     def archive_model(self, model_dir):
         """
         Move a next-generation model to the archive (copies directory)
-        
-        Args:
-            model_dir: Path to model directory to archive
         """
         copies_dir = os.path.join(self.resource.next_generation_model_dir, "copies")
         os.makedirs(copies_dir, exist_ok=True)
@@ -268,9 +212,6 @@ class ModelManager:
     def cleanup_old_archives(self, max_archives=50):
         """
         Remove old archived models to save disk space
-        
-        Args:
-            max_archives: Maximum number of archived models to keep
         """
         copies_dir = os.path.join(self.resource.next_generation_model_dir, "copies")
         
@@ -301,45 +242,3 @@ class ModelManager:
             logger.info(f"Cleaned up {removed_count} old archived models")
         
         return removed_count
-
-
-# Standalone functions for compatibility with existing code
-def load_best_model_weight(model, config=None):
-    """
-    Standalone function for loading best model weights
-    Returns True if successful, False otherwise
-    """
-    if config is None:
-        from src.config.normal import get_config
-        config = get_config()
-    
-    model_manager = ModelManager(config)
-    best_model = model_manager.load_best_model()
-    
-    if best_model is None:
-        return False
-    
-    # Copy weights to the provided model
-    model.load_state_dict(best_model.state_dict())
-    return True
-
-
-def save_as_best_model(model, config=None):
-    """
-    Standalone function for saving a model as best
-    """
-    if config is None:
-        from src.config.normal import get_config
-        config = get_config()
-    
-    model_manager = ModelManager(config)
-    model_manager.save_as_best_model(model)
-
-
-def get_next_generation_model_dirs(resource_config):
-    """
-    Standalone function for compatibility with existing code
-    """
-    config = type('Config', (), {'resource': resource_config})()
-    model_manager = ModelManager(config)
-    return model_manager.get_next_generation_model_dirs()

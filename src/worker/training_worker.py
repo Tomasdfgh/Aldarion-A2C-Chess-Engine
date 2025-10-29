@@ -18,12 +18,14 @@ import chess
 from datetime import datetime
 import numpy as np
 import random
+import multiprocessing as mp
 
 # Import Aldarion modules
 from src.lib.model_manager import ModelManager
 from src.lib.data_manager import DataManager
 from src.agent import model as md
 from src.agent import board as br
+from config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -185,12 +187,7 @@ def train_epoch(model, dataloader, optimizer, device, loss_weights):
 def start_training_worker(config):
     """
     Start the continuous training worker
-    
-    Args:
-        config: Configuration object with trainer, model, and resource settings
     """
-    # Set multiprocessing start method for CUDA compatibility
-    import multiprocessing as mp
     mp.set_start_method('spawn', force=True)
     
     logger.info("Starting training worker")
@@ -200,15 +197,14 @@ def start_training_worker(config):
     
     # Training configuration
     tr_config = config.trainer
-    
     logger.info(f"Training configuration:")
-    logger.info(f"  Batch size: {tr_config.batch_size}")
-    logger.info(f"  Dataset size: {tr_config.dataset_size}")
-    logger.info(f"  Loss weights: {tr_config.loss_weights}")
-    logger.info(f"  Load data steps: {tr_config.load_data_steps}")
+    logger.info(f"Batch size: {tr_config.batch_size}")
+    logger.info(f"Dataset size: {tr_config.dataset_size}")
+    logger.info(f"Loss weights: {tr_config.loss_weights}")
+    logger.info(f"Load data steps: {tr_config.load_data_steps}")
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    logger.info(f"Using device: {device}")
+    logger.info(f"Using device: {device}\n")
     
     step_count = tr_config.start_total_steps
     dataloader = None
@@ -218,7 +214,18 @@ def start_training_worker(config):
             # Check if we have enough training data
             total_datapoints = data_manager.get_total_datapoints()
             if total_datapoints < tr_config.min_data_size_to_learn:
-                logger.debug(f"Not enough training data ({total_datapoints} < {tr_config.min_data_size_to_learn}), waiting...")
+                time.sleep(30)
+                continue
+            
+            # Check candidate pool size (limit to 20 models)
+            candidate_models = model_manager.get_next_generation_model_dirs()
+            if len(candidate_models) >= 20:
+                time.sleep(30)
+                continue
+
+            #Check if there are any training data
+            training_files = data_manager.get_game_data_filenames()
+            if not training_files:
                 time.sleep(30)
                 continue
             
@@ -226,43 +233,39 @@ def start_training_worker(config):
             
             # Load training data every N steps or if no dataloader exists
             if step_count % tr_config.load_data_steps == 1 or dataloader is None:
-                training_files = data_manager.get_game_data_filenames()
-                if not training_files:
-                    logger.debug("No training data files found, waiting...")
-                    time.sleep(30)
-                    continue
                 
-                logger.info(f"🧠 Starting training step #{step_count}")
+                logger.info(f"Starting training step #{step_count}")
                 logger.info(f"Loading training data from {len(training_files)} files")
                 dataset = ChessTrainingDataset(training_files)
                 
                 if len(dataset) == 0:
                     logger.debug("No training examples loaded, waiting...")
                     time.sleep(30)
+                    step_count -= 1
                     continue
                 
                 dataloader = DataLoader(
                     dataset,
-                    batch_size=tr_config.batch_size,
-                    shuffle=True,
-                    num_workers=4,
-                    pin_memory=True if device.type == 'cuda' else False,
-                    collate_fn=collate_fn,
-                    drop_last=True
+                    batch_size = tr_config.batch_size,
+                    shuffle = True,
+                    num_workers = 4,
+                    pin_memory = True if device.type == 'cuda' else False,
+                    collate_fn = collate_fn,
+                    drop_last = True
                 )
                 
                 logger.info(f"Loaded {len(dataset):,} training examples")
             
             # Skip training if no dataloader available
             if dataloader is None:
-                logger.debug("No dataloader available, waiting...")
+                step_count -= 1
                 time.sleep(30)
                 continue
             
             # Load current best model
             model = model_manager.load_best_model()
             if model is None:
-                logger.error("No best model available for training")
+                step_count -= 1
                 time.sleep(30)
                 continue
             
@@ -271,9 +274,9 @@ def start_training_worker(config):
             # Setup optimizer
             optimizer = optim.SGD(
                 model.parameters(),
-                lr=0.01,  # Use conservative learning rate for continuous training
-                momentum=0.9,
-                weight_decay=config.model.l2_reg
+                lr= config.trainer.lr,
+                momentum= config.trainer.momentum,
+                weight_decay= config.trainer.weight_decay
             )
             
             # Train for one epoch
@@ -285,13 +288,13 @@ def start_training_worker(config):
             model_id = f"step_{step_count:06d}"
             model_dir = model_manager.save_next_generation_model(model, model_id)
             
-            logger.info(f"✅ Training step #{step_count} complete:")
-            logger.info(f"   Total loss: {metrics['avg_total_loss']:.4f}")
-            logger.info(f"   Policy loss: {metrics['avg_policy_loss']:.4f}")
-            logger.info(f"   Value loss: {metrics['avg_value_loss']:.4f}")
-            logger.info(f"   Training examples: {len(dataset):,}")
-            logger.info(f"   Training time: {training_time:.1f}s")
-            logger.info(f"   Model saved: {os.path.basename(model_dir)}")
+            logger.info(f"Training step #{step_count} complete:")
+            logger.info(f"Total loss: {metrics['avg_total_loss']:.4f}")
+            logger.info(f"Policy loss: {metrics['avg_policy_loss']:.4f}")
+            logger.info(f"Value loss: {metrics['avg_value_loss']:.4f}")
+            logger.info(f"Training examples: {len(dataset):,}")
+            logger.info(f"Training time: {training_time:.1f}s")
+            logger.info(f"Model saved: {os.path.basename(model_dir)}\n")
             
             # Brief pause before next training step
             time.sleep(10)
@@ -303,17 +306,3 @@ def start_training_worker(config):
         logger.error(f"Training worker failed: {e}")
         logger.exception("Training worker error details")
         return False
-
-
-if __name__ == "__main__":
-    # For testing the worker directly
-    from src.config.mini import get_config
-    config = get_config()
-    
-    # Setup logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
-    
-    start_training_worker(config)

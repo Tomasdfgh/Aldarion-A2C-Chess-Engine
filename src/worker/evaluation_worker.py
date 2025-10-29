@@ -5,10 +5,9 @@ Continuous worker that evaluates next-generation models against the best model
 """
 
 import os
-import sys
 import time
 import logging
-from datetime import datetime
+import multiprocessing as mp
 
 # Import Aldarion modules
 from src.lib.model_manager import ModelManager
@@ -21,47 +20,41 @@ logger = logging.getLogger(__name__)
 def start_evaluation_worker(config):
     """
     Start the continuous evaluation worker
-    
-    Args:
-        config: Configuration object with eval, model, and resource settings
     """
-    # Set multiprocessing start method for CUDA compatibility
-    import multiprocessing as mp
+    
     mp.set_start_method('spawn', force=True)
-    
-    logger.info("Starting evaluation worker")
-    
     model_manager = ModelManager(config)
-    
-    # Evaluation configuration
     eval_config = config.eval
     
+    logger.info("Starting evaluation worker")
     logger.info(f"Evaluation configuration:")
-    logger.info(f"  Games per evaluation: {eval_config.game_num}")
-    logger.info(f"  Replace rate threshold: {eval_config.replace_rate}")
-    logger.info(f"  Max game length: {eval_config.max_game_length}")
-    logger.info(f"  Simulations per move: {eval_config.play_config.simulation_num_per_move}")
+    logger.info(f"Games per evaluation: {eval_config.game_num}")
+    logger.info(f"Replace rate threshold: {eval_config.replace_rate}")
+    logger.info(f"Max game length: {eval_config.max_game_length}")
+    logger.info(f"Simulations per move: {eval_config.simulation_num_per_move}\n")
     
     evaluation_count = 0
     
     try:
         while True:
+
             # Check for next-generation models to evaluate
             ng_model_dirs = model_manager.get_next_generation_model_dirs()
             if not ng_model_dirs:
-                logger.debug("No next-generation models to evaluate, waiting...")
                 time.sleep(30)
                 continue
             
-            evaluation_count += 1
-            logger.info(f"⚖️ Starting evaluation #{evaluation_count}")
+            # Reverse to evaluate oldest models first (FIFO)
+            ng_model_dirs.reverse()
             
             # Load best model
             best_model_path = config.resource.model_best_weight_path
             if not os.path.exists(best_model_path):
-                logger.error("No best model found for evaluation")
                 time.sleep(30)
                 continue
+            
+            evaluation_count += 1
+            logger.info(f"Starting evaluation #{evaluation_count}")
             
             # Evaluate models (newest first if configured)
             if eval_config.evaluate_latest_first:
@@ -93,51 +86,48 @@ def start_evaluation_worker(config):
                 # Calculate score rate (wins + 0.5 * draws)
                 score_rate = results['score_rate']
                 
-                logger.info(f"✅ Evaluation complete for {model_name}:")
-                logger.info(f"   Games played: {results['total_games']}")
-                logger.info(f"   Score rate: {score_rate:.1f}%")
-                logger.info(f"   New model wins: {results['new_model_wins']}")
-                logger.info(f"   Old model wins: {results['old_model_wins']}")
-                logger.info(f"   Draws: {results['draws']}")
-                logger.info(f"   Evaluation time: {evaluation_time:.1f}s ({evaluation_time/60:.1f}m)")
+                logger.info(f"Evaluation complete for {model_name}:")
+                logger.info(f"Games played: {results['total_games']}")
+                logger.info(f"Score rate: {score_rate:.1f}%")
+                logger.info(f"New model wins: {results['new_model_wins']}")
+                logger.info(f"Old model wins: {results['old_model_wins']}")
+                logger.info(f"Draws: {results['draws']}")
+                logger.info(f"Evaluation time: {evaluation_time:.1f}s ({evaluation_time/60:.1f}m)\n")
                 
-                # Decide whether to promote the model
-                threshold = eval_config.replace_rate * 100  # Convert to percentage
-                
+                threshold = eval_config.replace_rate * 100
                 if score_rate > threshold:
-                    logger.info(f"🎉 PROMOTING MODEL: {model_name}")
-                    logger.info(f"   Score rate {score_rate:.1f}% > {threshold:.1f}% threshold")
+                    logger.info(f"=====PROMOTING MODEL: {model_name}=====")
+                    logger.info(f"Score rate {score_rate:.1f}% > {threshold:.1f}% threshold")
                     
                     # Load and promote the new model
                     new_model = model_manager.load_next_generation_model(model_dir)
                     if new_model:
                         model_manager.save_as_best_model(new_model)
-                        logger.info(f"   {model_name} is now the best model")
+                        logger.info(f"{model_name} is now the best model")
                         
                         # Archive the old candidate model
                         model_manager.archive_model(model_dir)
-                        logger.info(f"   {model_name} archived")
+                        logger.info(f"{model_name} archived")
                     else:
                         logger.error(f"Failed to load model {model_name} for promotion")
+
                 else:
-                    logger.info(f"❌ REJECTING MODEL: {model_name}")
-                    logger.info(f"   Score rate {score_rate:.1f}% <= {threshold:.1f}% threshold")
+                    logger.info(f"=-=-=REJECTING MODEL: {model_name}=-=-=")
+                    logger.info(f"Score rate {score_rate:.1f}% <= {threshold:.1f}% threshold")
                     
                     # Archive the failed candidate model
                     model_manager.archive_model(model_dir)
-                    logger.info(f"   {model_name} archived")
+                    logger.info(f"{model_name} archived")
                 
                 # Clean up old archives periodically
                 if evaluation_count % 10 == 0:
-                    removed = model_manager.cleanup_old_archives(max_archives=50)
+                    removed = model_manager.cleanup_old_archives(max_archives=10)
                     if removed > 0:
                         logger.info(f"Cleaned up {removed} old archived models")
                 
-                # Brief pause between evaluations
                 time.sleep(5)
             
-            # Longer pause before checking for new models
-            time.sleep(60)
+            time.sleep(30)
             
     except KeyboardInterrupt:
         logger.info("Evaluation worker stopped by user")
@@ -151,33 +141,25 @@ def start_evaluation_worker(config):
 def evaluate_models(old_model_path, new_model_path, config):
     """
     Evaluate two models against each other
-    
-    Args:
-        old_model_path: Path to old (best) model weights
-        new_model_path: Path to new (candidate) model weights
-        config: Configuration object
-        
-    Returns:
-        dict: Evaluation results or None if failed
     """
     eval_config = config.eval
     
     task_config = {
         'total_tasks': eval_config.game_num,
-        'num_simulations': eval_config.play_config.simulation_num_per_move,
+        'num_simulations': eval_config.simulation_num_per_move,
         'old_model_path': old_model_path,
         'new_model_path': new_model_path,
         'max_game_length': eval_config.max_game_length,
-        'c_puct': eval_config.play_config.c_puct,
-        'tau_decay_rate': eval_config.play_config.tau_decay_rate,
-        'noise_eps': eval_config.play_config.noise_eps,
+        'c_puct': eval_config.c_puct,
+        'tau_decay_rate': eval_config.tau_decay_rate,
+        'noise_eps': eval_config.noise_eps,
         'seed': int(time.time()) % 10000  # Dynamic seed
     }
     
     # Calculate CPU utilization based on max_processes
     import multiprocessing as mp
     total_cpus = mp.cpu_count()
-    cpu_utilization = min(0.9, eval_config.play_config.max_processes / total_cpus)
+    cpu_utilization = min(0.9, eval_config.max_processes / total_cpus)
     
     logger.debug(f"Running {eval_config.game_num} evaluation games")
     
@@ -247,21 +229,3 @@ def evaluate_models(old_model_path, new_model_path, config):
         logger.error(f"Evaluation execution failed: {e}")
         logger.exception("Evaluation error details")
         return None
-
-
-if __name__ == "__main__":
-    # For testing the worker directly
-    import multiprocessing as mp
-    mp.set_start_method('spawn', force=True)
-    
-    # Load mini config for testing
-    from src.config.mini import get_config
-    config = get_config()
-    
-    # Setup logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
-    
-    start_evaluation_worker(config)
