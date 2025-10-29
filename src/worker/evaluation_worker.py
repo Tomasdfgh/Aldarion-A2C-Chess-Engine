@@ -26,12 +26,13 @@ def start_evaluation_worker(config):
     model_manager = ModelManager(config)
     eval_config = config.eval
     
+    logger.info(f" ")
     logger.info("Starting evaluation worker")
     logger.info(f"Evaluation configuration:")
     logger.info(f"Games per evaluation: {eval_config.game_num}")
     logger.info(f"Replace rate threshold: {eval_config.replace_rate}")
     logger.info(f"Max game length: {eval_config.max_game_length}")
-    logger.info(f"Simulations per move: {eval_config.simulation_num_per_move}\n")
+    logger.info(f"Simulations per move: {eval_config.simulation_num_per_move}")
     
     evaluation_count = 0
     
@@ -41,6 +42,7 @@ def start_evaluation_worker(config):
             # Check for next-generation models to evaluate
             ng_model_dirs = model_manager.get_next_generation_model_dirs()
             if not ng_model_dirs:
+                logger.info(f"Can't find next candidate model")
                 time.sleep(30)
                 continue
             
@@ -50,10 +52,12 @@ def start_evaluation_worker(config):
             # Load best model
             best_model_path = config.resource.model_best_weight_path
             if not os.path.exists(best_model_path):
+                logger.info(f"Can't find best model")
                 time.sleep(30)
                 continue
             
             evaluation_count += 1
+            logger.info(f" ")
             logger.info(f"Starting evaluation #{evaluation_count}")
             
             # Evaluate models (newest first if configured)
@@ -68,6 +72,7 @@ def start_evaluation_worker(config):
                     logger.warning(f"Model weights not found: {ng_model_path}")
                     continue
                 
+                logger.info(f" ")
                 logger.info(f"Evaluating {model_name} vs best model")
                 
                 # Run evaluation
@@ -92,7 +97,7 @@ def start_evaluation_worker(config):
                 logger.info(f"New model wins: {results['new_model_wins']}")
                 logger.info(f"Old model wins: {results['old_model_wins']}")
                 logger.info(f"Draws: {results['draws']}")
-                logger.info(f"Evaluation time: {evaluation_time:.1f}s ({evaluation_time/60:.1f}m)\n")
+                logger.info(f"Evaluation time: {evaluation_time:.1f}s ({evaluation_time/60:.1f}m)")
                 
                 threshold = eval_config.replace_rate * 100
                 if score_rate > threshold:

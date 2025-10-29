@@ -5,6 +5,7 @@ Main entry point for Aldarion Chess Engine parallel training system
 import sys
 import argparse
 import logging
+import os
 
 #Local Imports
 from src.worker.selfplay_worker import start_selfplay_worker
@@ -12,16 +13,16 @@ from src.worker.training_worker import start_training_worker
 from src.worker.evaluation_worker import start_evaluation_worker
 from src.lib.model_manager import ModelManager
 from src.lib.data_manager import DataManager
-from config import Config
+from .config import Config
 
 
-def setup_logging(log_level=logging.INFO, worker_type=None):
+def setup_logging(log_level=logging.INFO, worker_type=None, config=None):
     """Setup logging configuration"""
     handlers = [logging.StreamHandler()]
     
     # Add file handler if worker type specified
-    if worker_type:
-        log_filename = f"logs/{worker_type}.log"
+    if worker_type and config:
+        log_filename = os.path.join(config.resource.log_dir, f"{worker_type}.log")
         file_handler = logging.FileHandler(log_filename, mode='a')
         handlers.append(file_handler)
     
@@ -76,19 +77,19 @@ def main():
     config = Config()
     
     if args.command == 'self':     
-        setup_logging(log_level=logging.INFO, worker_type='selfplay')
+        setup_logging(log_level=logging.INFO, worker_type='selfplay', config=config)
         print("Starting Self-Play Worker")
         print("=" * 60)
         start_selfplay_worker(config)
         
     elif args.command == 'opt':
-        setup_logging(log_level=logging.INFO, worker_type='training')
+        setup_logging(log_level=logging.INFO, worker_type='training', config=config)
         print("Starting Training Worker")
         print("=" * 60)
         start_training_worker(config)
 
     elif args.command == 'eval': 
-        setup_logging(log_level=logging.INFO, worker_type='evaluation')
+        setup_logging(log_level=logging.INFO, worker_type='evaluation', config=config)
         print("Starting Evaluation Worker")
         print("=" * 60)
         start_evaluation_worker(config)

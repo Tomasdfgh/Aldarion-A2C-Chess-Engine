@@ -16,7 +16,7 @@ class Config:
 class TrainerConfig:
     
     def __init__(self):
-        self.min_data_size_to_learn = 20000
+        self.min_data_size_to_learn = 40000
         self.batch_size = 512
         self.epoch_to_checkpoint = 1
         self.dataset_size = 500000
@@ -32,7 +32,7 @@ class SelfPlayConfig:
     
     def __init__(self):
         self.max_processes = 12
-        self.simulation_num_per_move = 150
+        self.simulation_num_per_move = 350
         self.c_puct = 1.5
         self.noise_eps = 0.25
         self.dirichlet_alpha = 0.3
@@ -44,12 +44,12 @@ class SelfPlayConfig:
 class EvaluateConfig:
     
     def __init__(self):
-        self.game_num = 42
+        self.game_num = 56
         self.replace_rate = 0.55
         self.evaluate_latest_first = False
         self.max_game_length = 1000
         self.max_processes = 14
-        self.simulation_num_per_move = 150
+        self.simulation_num_per_move = 350
         self.c_puct = 1.0
         self.tau_decay_rate = 0.6
         self.noise_eps = 0
@@ -58,7 +58,7 @@ class ResourceConfig:
     """Configuration for file paths and resources"""
     
     def __init__(self):
-        self.project_dir = os.path.dirname(os.path.abspath(__file__))
+        self.project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         
         # Model paths
         self.model_dir = os.path.join(self.project_dir, "data", "models")

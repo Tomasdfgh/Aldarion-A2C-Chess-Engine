@@ -25,7 +25,7 @@ from src.lib.model_manager import ModelManager
 from src.lib.data_manager import DataManager
 from src.agent import model as md
 from src.agent import board as br
-from config import Config
+from ..config import Config
 
 logger = logging.getLogger(__name__)
 

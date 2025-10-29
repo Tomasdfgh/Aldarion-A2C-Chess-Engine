@@ -127,6 +127,6 @@ class DataManager:
                 logger.warning(f"Failed to remove {filepath}: {e}")
                 continue
         
-        logger.info(f"Data cycling complete: removed {removed_count} files, {current_datapoints} datapoints remaining")
+        logger.info(f"Data cycling complete: removed {removed_count} files, {current_datapoints} datapoints remaining\n")
         
         return removed_count

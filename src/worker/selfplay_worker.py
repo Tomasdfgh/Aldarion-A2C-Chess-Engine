@@ -69,7 +69,7 @@ def start_selfplay_worker(config):
                 os.remove(temp_model_path)
             
             if not training_data:
-                logger.warning("No training data generated, retrying...")
+                logger.warning("No training data generated, retrying")
                 time.sleep(10)
                 continue
             
