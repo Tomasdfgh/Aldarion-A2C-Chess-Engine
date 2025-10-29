@@ -30,37 +30,63 @@ conda activate aldarion
 python -c "import torch; import chess; print('PyTorch version:', torch.__version__); print('CUDA available:', torch.cuda.is_available())"
 ```
 
-## Example script commands
+## Training System Commands
 
-### Create Baseline Model with Random Weights
-
-```bash
-python -c "import os; import torch; import model as md; os.makedirs('model_weights', exist_ok=True); torch.save(md.ChessNet().state_dict(), 'model_weights/model_weights.pth'); print('Random weights saved to model_weights/model_weights.pth')"
-```
-Run that command to initialize a starting model with random weights. The weight will be saved in the model_weights folder as a .pth file. You can use this file in order to run selfplay to create training data (below).
-
-### Run a selfplay trial
+### Initialize the System
 
 ```bash
-python3 selfplay_generate_data.py --total_games 250 --num_simulations  128 --cpu_utilization 0.9 --model_path <Path to the model weight (.pth) file>
+python run.py init
 ```
 
-This example command will trigger model selfplaying to collect training data with 250 selfplay games, 128 visits/move, and 90 percent of CPU utilization.
+Initialize the system with a random model to bootstrap the training process. This creates the initial best model required for self-play and training.
 
-### Run Model Training
+### Check System Status
 
 ```bash
-python3 train_model.py --data <Path to training data .pkl file> --validation_data <Path to Validation data .pkl file> --model_path <Path to the model weight (.pth) file> --epochs 5 --lr 0.0001 --batch_size 32
+python run.py status
 ```
 
-This example command will trigger model training on the model from the path to the weights. Both training and validation data can be obtained from the selfplay process.
+Display the current system status including best model availability, number of candidate models, training data statistics, and system directories.
 
-### Run Evaluation Between two models
+### Start Training Workers
+
+The training system consists of three parallel workers that work together:
+
+#### Start Self-Play Worker
+```bash
+python run.py self
+```
+
+Generates training data by playing games using the current best model. Runs continuously and saves game data for training.
+
+#### Start Training Worker
+```bash
+python run.py opt
+```
+
+Trains new models using the latest self-play data. Automatically limits candidate pool to 20 models and waits for evaluation when pool is full.
+
+#### Start Evaluation Worker
+```bash
+python run.py eval
+```
+
+Evaluates candidate models against the current best model. Promotes superior models and archives evaluated candidates in FIFO order.
+
+### Running All Workers with tmux
 
 ```bash
-python3 evaluate_models.py --old_model <Path to the old model weight (.pth) file> --new_model <Path to the new model weight (.pth) file> --num_games 5 --num_simulations 5 --cpu_utilization 0.9
+# Start all three workers in parallel tmux sessions
+tmux new-session -d -s selfplay 'python run.py self'
+tmux new-session -d -s training 'python run.py opt'
+tmux new-session -d -s evaluation 'python run.py eval'
+
+# Attach to view any worker (optional)
+tmux attach -t selfplay    # View self-play logs
+tmux attach -t training    # View training logs  
+tmux attach -t evaluation  # View evaluation logs
 ```
 
-This example will run a competitive evaluation between two models inorder to determine which model is superior. Games will be deterministic, and opening states are randomly chosen from Chess960.
+The system automatically coordinates between workers: self-play generates data, training creates new models, and evaluation determines which models become the new best model.
 
 This project is still in development.

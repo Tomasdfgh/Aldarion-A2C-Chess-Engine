@@ -37,14 +37,14 @@ def start_selfplay_worker(config):
     logger.info(f"Simulations per move: {sp_config.simulation_num_per_move}")
     logger.info(f"Max processes: {sp_config.max_processes}")
     logger.info(f"Temperature decay: {sp_config.tau_decay_rate}")
-    logger.info(f"C-PUCT: {sp_config.c_puct}")
+    logger.info(f"C-PUCT: {sp_config.c_puct}\n")
     
     generation_count = 0
     
     try:
         while True:
             generation_count += 1
-            logger.info(f"\nStarting self-play generation #{generation_count}")
+            logger.info(f"Starting self-play generation #{generation_count}")
             
             # Load the current best model
             best_model = model_manager.load_best_model()
