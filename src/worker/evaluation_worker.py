@@ -160,9 +160,6 @@ def evaluate_models(old_model_path, new_model_path, config):
         'noise_eps': eval_config.noise_eps,
         'seed': int(time.time()) % 10000  # Dynamic seed
     }
-    
-    # Calculate CPU utilization based on max_processes
-    import multiprocessing as mp
     total_cpus = mp.cpu_count()
     cpu_utilization = min(0.9, eval_config.max_processes / total_cpus)
     

@@ -202,6 +202,11 @@ class ModelManager:
         archive_path = os.path.join(copies_dir, model_name)
         
         try:
+            # Remove existing archived model if it exists
+            if os.path.exists(archive_path):
+                shutil.rmtree(archive_path)
+                logger.info(f"Removed existing archived model {model_name}")
+            
             shutil.move(model_dir, archive_path)
             logger.info(f"Archived model {model_name}")
             

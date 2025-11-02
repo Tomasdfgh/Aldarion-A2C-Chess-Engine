@@ -217,9 +217,9 @@ def start_training_worker(config):
                 time.sleep(30)
                 continue
             
-            # Check candidate pool size (limit to 20 models)
+            # Check candidate pool size (limit configurable)
             candidate_models = model_manager.get_next_generation_model_dirs()
-            if len(candidate_models) >= 20:
+            if len(candidate_models) >= tr_config.max_candidate_pool_size:
                 time.sleep(30)
                 continue
 

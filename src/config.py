@@ -19,13 +19,14 @@ class TrainerConfig:
         self.min_data_size_to_learn = 40000
         self.batch_size = 512
         self.epoch_to_checkpoint = 1
-        self.dataset_size = 500000
+        self.dataset_size = 1000000
         self.start_total_steps = 0
         self.load_data_steps = 5
-        self.loss_weights = [1.0, 0.5]  # [policy, value]
-        self.lr = 0.01
+        self.loss_weights = [1.0, 1.0]  # [policy, value]
+        self.lr = 0.005
         self.momentum = 0.9
         self.weight_decay = 1e-4
+        self.max_candidate_pool_size = 5
 
 
 class SelfPlayConfig:
@@ -44,12 +45,12 @@ class SelfPlayConfig:
 class EvaluateConfig:
     
     def __init__(self):
-        self.game_num = 56
+        self.game_num = 64
         self.replace_rate = 0.55
         self.evaluate_latest_first = False
         self.max_game_length = 1000
-        self.max_processes = 14
-        self.simulation_num_per_move = 350
+        self.max_processes = 16
+        self.simulation_num_per_move = 250
         self.c_puct = 1.0
         self.tau_decay_rate = 0.6
         self.noise_eps = 0
