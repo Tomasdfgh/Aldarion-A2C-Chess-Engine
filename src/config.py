@@ -33,7 +33,7 @@ class SelfPlayConfig:
     
     def __init__(self):
         self.max_processes = 12
-        self.simulation_num_per_move = 350
+        self.simulation_num_per_move = 450
         self.c_puct = 1.5
         self.noise_eps = 0.25
         self.dirichlet_alpha = 0.3
